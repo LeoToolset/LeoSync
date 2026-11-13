@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Profil-Optionen (Entities.kt) -->
+    <string name="delete_mode_keep">Keep files</string>
+    <string name="delete_mode_trash">Move to trash</string>
+    <string name="delete_mode_delete">Delete permanently</string>
+    <string name="profile_type_label_photos">Back up photos &amp; videos</string>
+    <string name="profile_type_label_mirror">Sync a folder</string>
+    <string name="direction_upload">Phone → PC</string>
+    <string name="direction_upload_short">→ PC</string>
+    <string name="direction_download">PC → Phone</string>
+    <string name="direction_download_short">→ Phone</string>
+    <string name="direction_both">Both ways</string>
+    <string name="direction_both_short">⇄</string>
+    <string name="conflict_mode_ask">Ask every time</string>
+    <string name="conflict_mode_newer">Always take the newer file</string>
+
+    <!-- Profil-Assistent (ProfileWizard) -->
+    <string name="wizard_step_name">Profile name</string>
+    <string name="wizard_step_source">Source</string>
+    <string name="wizard_step_target">Target</string>
+    <string name="wizard_step_options">Sync options</string>
+    <string name="wizard_step_filter">Filter</string>
+    <string name="wizard_step_guard">Safety brake</string>
+    <string name="wizard_missing_name">Please give the profile a name.</string>
+    <string name="wizard_missing_wifi">Please add at least one Wi-Fi name (needed for “Wi-Fi name only” and “Both”).</string>
+    <string name="profile_name_taken">This name is already used by another profile. Choose a different name.</string>
+    <string name="profile_name_taken_existing">Another profile has the same name. Please rename this profile.</string>
+    <string name="wizard_missing_local">Please choose the folder on the phone.</string>
+    <string name="wizard_missing_sources">Please choose at least one folder on the phone.</string>
+    <string name="wizard_missing_media">Please turn on photos, videos or both.</string>
+    <string name="wizard_missing_target">Please enter the Share path, e.g. \\\\192.168.1.20\\Photos.</string>
+
+    <!-- Doppelte Profile (ProfileOverlap) -->
+    <string name="overlap_identical">Profile “%1$s” already has the same target and the same sources.</string>
+    <string name="overlap_nested">A folder of this profile lies inside a folder of profile “%1$s” (or the other way round). The same files would be synced by both profiles – this can lead to duplicate copies, conflicts or unwanted deletions.</string>
+    <string name="overlap_shared_folders">Same target as profile “%1$s” and shared source folders: %2$s. These files would be checked and transferred by both profiles.</string>
+    <string name="overlap_blocked_layout">Profile “%1$s” already uses this target with a different folder structure (%2$s). All photo profiles of the same target must use the same structure, so this profile cannot be saved. Choose the same structure or another target.</string>
+    <string name="folder_layout_month_suffix">Year\\MM[ - Country]</string>
+    <string name="folder_layout_country_folder">Year\\[Country\\]MM</string>
+    <string name="folder_layout_country_subfolder">Year\\MM\\[Country]</string>
+    <string name="overlap_same_target">Same target as profile “%1$s”. These files would be checked and transferred by both profiles.</string>
+
+    <!-- Typwahl und Ordnerauswahl auf dem Share (ProfileParts) -->
+    <string name="type_chooser_title">What do you want to sync?</string>
+    <string name="type_chooser_photos">Photos and videos from the phone to the PC. Stored by year, month and travel country, e.g. 2026\\06 - Egypt. Optionally remove them from the phone afterwards.</string>
+    <string name="type_chooser_mirror">Mirror any folder 1:1, with subfolders and all file types. Direction selectable: phone → PC, PC → phone or both ways.</string>
+    <string name="remote_picker_title">Folder on the Share</string>
+    <string name="remote_picker_title_shares">Shares on the PC</string>
+    <string name="remote_picker_no_shares">No Shares found. Is a folder shared on the PC (Properties → Sharing)?</string>
+    <string name="remote_picker_empty">No subfolders</string>
+    <string name="remote_picker_use">Use this folder</string>
+    <string name="remote_picker_new_folder">New folder</string>
+    <string name="remote_picker_new_folder_name">Folder name</string>
+    <string name="remote_picker_create">Create</string>
+    <string name="remote_picker_name_invalid">Invalid name. No \\ / : * ? \" &lt; &gt; |, no dot or space at the end.</string>
+    <string name="remote_picker_name_exists">A folder named \"%1$s\" already exists.</string>
+    <string name="remote_picker_create_failed">The folder could not be created.</string>
+    <!-- SYNC-20261111-195: Bedienhilfe-Beschreibungen der Icons (Symbole im Text, ui/SymbolText.kt) -->
+    <string name="icon_folder">Folder</string>
+    <string name="icon_camera">Camera</string>
+    <string name="icon_phone">Phone</string>
+    <string name="icon_pc">PC</string>
+    <string name="icon_server">Server</string>
+    <string name="icon_add">Add</string>
+    <string name="icon_up">Up</string>
+    <string name="icon_down">Down</string>
+    <string name="icon_pause">Pause</string>
+    <string name="icon_play">Play</string>
+    <string name="icon_ok">Done</string>
+    <string name="icon_error">Error</string>
+    <string name="icon_warn">Warning</string>
+    <string name="icon_sync">Sync</string>
+    <string name="icon_bin">Trash</string>
+    <string name="icon_both">Both directions</string>
+</resources>

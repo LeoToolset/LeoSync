@@ -1,0 +1,148 @@
+package com.sync2pc.app.backup
+
+import android.content.Context
+import android.net.Uri
+import androidx.room.withTransaction
+import com.sync2pc.app.BuildConfig
+import com.sync2pc.app.data.AppDatabase
+import com.sync2pc.app.data.CredentialCrypto
+import com.sync2pc.app.data.GlobalSettings
+import com.sync2pc.app.data.ProfileOverlap
+import com.sync2pc.app.data.ProfileType
+import com.sync2pc.app.mirror.LocalTree
+import com.sync2pc.app.sync.SyncScheduler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Export und Import der Sicherung über Dateien, die der Benutzer per Android-Dateiauswahl wählt. */
+object BackupManager {
+
+    data class ExportResult(val profiles: Int, val synced: Int, val withPasswords: Boolean)
+
+    data class ImportResult(
+        val profiles: Int,
+        val synced: Int,
+        /** Profile, deren SMB-Passwort neu eingegeben werden muss */
+        val withoutPassword: List<String>,
+        /** Ordner-Profile: Handy-Ordner muss neu gewählt werden (Android überträgt die Freigabe nicht) */
+        val needFolder: List<String>,
+        /** Nicht importiert, weil ein identisches Profil (gleiches Ziel, gleiche Quellen) schon besteht */
+        val skippedIdentical: List<String> = emptyList(),
+        /** Importiert, überschneidet sich aber mit einem bestehenden Profil (gleiches Ziel, gemeinsame Quellordner) */
+        val overlapping: List<String> = emptyList(),
+        /** Nicht importiert: gleiches Ziel wie ein anderes Fotoprofil, aber andere Ordnerstruktur (SYNC-20261109-083) */
+        val skippedLayoutBlocked: List<String> = emptyList(),
+        /** Nicht importiert: unbekannte Ordnerstruktur in der Sicherung (Name mit Code) */
+        val skippedLayoutUnknown: List<String> = emptyList(),
+    )
+
+    fun suggestedFileName(): String =
+        "LeoSync-Sicherung_" + SimpleDateFormat("yyyy-MM-dd", Locale.GERMANY).format(Date()) + ".json"
+
+    suspend fun export(context: Context, target: Uri, includeSyncState: Boolean, exportPassword: String?): ExportResult =
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.get(context).dao()
+            val profiles = dao.profiles()
+            val usePw = !exportPassword.isNullOrEmpty()
+            val content = BackupContent(
+                appVersion = BuildConfig.VERSION_NAME,
+                createdAt = System.currentTimeMillis(),
+                settings = GlobalSettings(context).exportable(),
+                profiles = profiles,
+                passwords = if (usePw) profiles.associate { it.id to CredentialCrypto.decrypt(it.smbPasswordEnc) } else emptyMap(),
+                mappings = dao.allMappings(),
+                synced = if (includeSyncState) dao.allSynced() else emptyList(),
+                mirrorStates = if (includeSyncState) dao.allMirrorStates() else emptyList(),
+            )
+            val json = BackupCodec.encode(content, exportPassword)
+            (context.contentResolver.openOutputStream(target, "wt") ?: throw BackupException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.backup_err_write)))
+                .use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            // SYNC-20261111-188 B8: Zahl = Fotodateien plus Ordner-Sync-Stand (der Ordner-Stand war enthalten, aber nicht mitgezählt)
+            ExportResult(profiles.size, content.synced.size + content.mirrorStates.size, usePw)
+        }
+
+    suspend fun read(context: Context, source: Uri): String = withContext(Dispatchers.IO) {
+        (context.contentResolver.openInputStream(source) ?: throw BackupException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.backup_err_read)))
+            .use { it.readBytes().toString(Charsets.UTF_8) }
+    }
+
+    /**
+     * Spielt eine Sicherung ein.
+     * replace = true: Alle bisherigen Profile (inkl. Sync-Status) werden ersetzt, Einstellungen übernommen.
+     * replace = false: Profile werden zusätzlich angelegt, Einstellungen bleiben unverändert.
+     */
+    suspend fun import(context: Context, backup: ParsedBackup, replace: Boolean): ImportResult = withContext(Dispatchers.IO) {
+        val db = AppDatabase.get(context)
+        val dao = db.dao()
+        val c = backup.content
+        val withoutPw = ArrayList<String>()
+        val needFolder = ArrayList<String>()
+        val skipped = ArrayList<String>()
+        val overlapping = ArrayList<String>()
+        val blockedLayout = ArrayList<String>()
+        var synced = 0
+        var imported = 0
+        // «Ersetzen» löscht zuerst alle Profile: nicht, wenn die Sicherung Profile enthält, die nicht importiert werden können
+        if (replace && c.rejectedProfiles.isNotEmpty()) throw BackupException(
+            com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.backup_err_replace_rejected, c.rejectedProfiles.joinToString(", "))
+        )
+        db.withTransaction {
+            if (replace) {
+                for (old in dao.profiles()) {
+                    dao.clearSynced(old.id); dao.clearMappings(old.id); dao.clearDecisions(old.id)
+                    dao.clearMirrorState(old.id); dao.clearConflicts(old.id); dao.deleteProfileRow(old.id)
+                    dao.clearRestores(old.id)
+                    com.sync2pc.app.mirror.PurgeStore(context).forget(old.id)
+                    com.sync2pc.app.mirror.RestoreFailures(context).forget(old.id)
+                    com.sync2pc.app.mirror.GuardStore(context).forget(old.id)
+                    GlobalSettings(context).setAwaitingFirstStart(old.id, false)
+                }
+            }
+            // Bestehende (bei "Ersetzen" keine) + bereits importierte Profile -> doppelte erkennen
+            val present = dao.profiles().toMutableList()
+            val canonicalCache = HashMap<String, String?>()
+            for (p in c.profiles) {
+                // id = -1: die ID aus der Sicherung darf nicht mit einer bestehenden ID verwechselt werden
+                when (ProfileOverlap.check(p.copy(id = -1), present) { uri -> canonicalCache.getOrPut(uri) { LocalTree.canonical(context, uri) } }?.kind) {
+                    ProfileOverlap.Kind.BLOCKED -> { blockedLayout += p.name; continue }
+                    ProfileOverlap.Kind.IDENTICAL -> { skipped += p.name; continue }
+                    ProfileOverlap.Kind.PARTIAL -> overlapping += p.name
+                    null -> {}
+                }
+                val pw = c.passwords[p.id].orEmpty()
+                val newId = dao.insertProfile(p.copy(id = 0, smbPasswordEnc = CredentialCrypto.encrypt(pw)))
+                present += p.copy(id = newId)
+                imported++
+                if (pw.isEmpty() && p.smbUser.isNotBlank()) withoutPw += p.name
+                if (p.type() == ProfileType.MIRROR &&
+                    (p.localTreeUri.isBlank() || !LocalTree.hasPermission(context, Uri.parse(p.localTreeUri)))
+                ) needFolder += p.name
+                // Ordner-Profile (0.4.1) starten wie neue Profile erst nach dem ersten Start von Hand: Der importierte
+                // Sync-Stand passt evtl. nicht zum Ordner auf diesem Handy (die Schutzbremse prüft zusätzlich)
+                if (p.type() == ProfileType.MIRROR) GlobalSettings(context).setAwaitingFirstStart(newId, true)
+                dao.upsertMappings(c.mappings.filter { it.profileId == p.id }.map { it.copy(profileId = newId) })
+                val files = c.synced.filter { it.profileId == p.id }.map { it.copy(profileId = newId) }
+                files.chunked(500).forEach { dao.upsertSyncedAll(it) }
+                synced += files.size
+                val states = c.mirrorStates.filter { it.profileId == p.id }.map { it.copy(profileId = newId) }
+                states.chunked(500).forEach { dao.upsertMirrorStates(it) }
+                synced += states.size
+                // Mit Sync-Stand importiert: Stichprobe beim ersten Lauf, ob die Ordner auf diesem Gerät passen
+                if (states.isNotEmpty()) com.sync2pc.app.mirror.GuardStore(context).setPendingCheck(
+                    newId, setOf(com.sync2pc.app.mirror.Side.LOCAL, com.sync2pc.app.mirror.Side.REMOTE)
+                )
+            }
+        }
+        val gs = GlobalSettings(context)
+        val offWifiBefore = gs.syncOffWifi
+        if (replace) gs.importFrom(c.settings)
+        SyncScheduler.updateRemotePoll(context, dao.profiles())
+        SyncScheduler.setupAll(context)
+        // 0.11.7: wechselt der Schalter "mobile Daten/VPN", gleich wie in den Einstellungen neu planen
+        if (gs.syncOffWifi != offWifiBefore) SyncScheduler.onOffWifiChanged(context)
+        ImportResult(imported, synced, withoutPw, needFolder, skipped, overlapping, blockedLayout, c.rejectedProfiles)
+    }
+}

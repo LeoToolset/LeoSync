@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Verlauf (LogScreen) -->
+    <string name="log_export_file">LeoSync-Verlauf_%1$s.txt</string>
+    <string name="log_export_failed">Export fehlgeschlagen: %1$s</string>
+    <string name="log_share">Verlauf teilen</string>
+    <string name="log_clear">Verlauf löschen</string>
+    <string name="log_filter_errors">Fehler</string>
+    <string name="log_filter_transfers">Übertragungen</string>
+    <string name="log_empty">Noch keine Einträge.</string>
+    <string name="log_empty_both">Keine Läufe mit Fehlern oder Übertragungen.</string>
+    <string name="log_empty_errors">Keine Läufe mit Fehlern.</string>
+    <string name="log_empty_transfers">Keine Läufe mit Übertragungen.</string>
+    <string name="log_idle_group">%1$s× geprüft – nichts zu tun</string>
+    <string name="log_status_partial">Teilweise</string>
+    <string name="log_status_failed">Fehler</string>
+    <string name="log_status_paused">Pausiert</string>
+    <string name="log_status_interrupted">Unterbrochen</string>
+    <string name="log_status_waiting">Wartet auf dich</string>
+    <string name="log_status_running">Läuft</string>
+    <string name="log_trigger">Auslöser: %1$s</string>
+
+    <!-- Sicherung (BackupSection) -->
+    <string name="backup_exporting">Exportiere…</string>
+    <plurals name="backup_exported">
+        <item quantity="one">Gesichert: %1$s Profil</item>
+        <item quantity="other">Gesichert: %1$s Profile</item>
+    </plurals>
+    <plurals name="backup_exported_sync">
+        <item quantity="one">%1$s Datei Abgleichstand</item>
+        <item quantity="other">%1$s Dateien Abgleichstand</item>
+    </plurals>
+    <string name="backup_passwords_encrypted">Passwörter verschlüsselt</string>
+    <string name="backup_without_passwords">ohne Passwörter</string>
+    <string name="backup_reading">Lese Sicherung…</string>
+    <string name="backup_unreadable">Sicherung nicht lesbar</string>
+    <string name="backup_file_unreadable">Datei nicht lesbar: %1$s</string>
+    <string name="backup_importing">Importiere…</string>
+    <plurals name="backup_imported">
+        <item quantity="one">%1$s Profil importiert</item>
+        <item quantity="other">%1$s Profile importiert</item>
+    </plurals>
+    <plurals name="backup_imported_sync">
+        <item quantity="one">Abgleichstand für %1$s Datei</item>
+        <item quantity="other">Abgleichstand für %1$s Dateien</item>
+    </plurals>
+    <string name="backup_skipped_identical">Übersprungen, weil schon vorhanden (gleiches Ziel und gleiche Quellen): %1$s</string>
+    <string name="backup_overlapping">Hinweis: Überschneidet sich mit einem bestehenden Profil (gleiches Ziel, gemeinsame Quellordner): %1$s</string>
+    <string name="backup_skipped_layout_blocked">Übersprungen, weil das Ziel schon von einem anderen Fotoprofil mit anderer Ordnerstruktur verwendet wird: %1$s</string>
+    <string name="backup_skipped_layout_unknown">Nicht importiert, weil die Ordnerstruktur unbekannt ist (Sicherung aus einer neueren Version?): %1$s</string>
+    <string name="backup_without_password">Passwort neu eingeben bei: %1$s</string>
+    <string name="backup_need_folder">Handy-Ordner neu wählen bei: %1$s (Android überträgt die Ordner-Freigabe nicht).</string>
+    <string name="backup_import_failed">Import fehlgeschlagen: %1$s</string>
+    <string name="backup_title">Sicherung</string>
+    <string name="backup_hint">Sichert Profile, Einstellungen, Ordner-Zuordnungen und auf Wunsch den Abgleichstand in eine Datei – z. B. vor einem Handywechsel oder einer Neuinstallation.</string>
+    <string name="backup_export">Exportieren…</string>
+    <string name="backup_import">Importieren…</string>
+    <string name="backup_export_title">Sicherung exportieren</string>
+    <string name="backup_include_sync">Abgleichstand mitsichern</string>
+    <string name="backup_include_sync_sub">Nach dem Import ist sofort bekannt, welche Dateien schon auf dem PC sind.</string>
+    <string name="backup_password_optional">Export-Passwort (optional)</string>
+    <string name="backup_password_repeat">Export-Passwort wiederholen</string>
+    <string name="backup_no_password_hint">Ohne Export-Passwort enthält die Datei keine SMB-Passwörter; du gibst sie nach dem Import neu ein.</string>
+    <string name="backup_password_hint">Die SMB-Passwörter werden mit diesem Passwort verschlüsselt. Ohne es lassen sie sich nicht wiederherstellen.</string>
+    <string name="backup_choose_file">Datei wählen…</string>
+    <string name="backup_password">Export-Passwort</string>
+    <string name="backup_ask_password_hint">Die Sicherung enthält verschlüsselte SMB-Passwörter. Ohne Export-Passwort werden die Profile trotzdem importiert, die Passwörter gibst du dann neu ein.</string>
+    <string name="backup_without_password_button">Ohne Passwort</string>
+    <string name="backup_import_title">Sicherung importieren</string>
+    <string name="backup_created">Erstellt: %1$s (LeoSync %2$s)</string>
+    <string name="backup_profiles">Profile: %1$s</string>
+    <plurals name="backup_sync_status">
+        <item quantity="one">Abgleichstand: %1$s Datei</item>
+        <item quantity="other">Abgleichstand: %1$s Dateien</item>
+    </plurals>
+    <string name="backup_pw_taken">SMB-Passwörter: werden übernommen</string>
+    <string name="backup_pw_wrong">SMB-Passwörter: Export-Passwort fehlt oder ist falsch – Passwörter werden nicht übernommen</string>
+    <string name="backup_pw_none">SMB-Passwörter: nicht enthalten</string>
+    <string name="backup_replace_hint">„Ersetzen“ löscht alle bisherigen Profile samt Abgleichstand und übernimmt auch die Einstellungen (nicht die Sprache der App, sie bleibt unverändert). „Hinzufügen“ legt die Profile zusätzlich an.</string>
+    <string name="backup_replace">Ersetzen</string>
+    <string name="backup_import_done">Import abgeschlossen</string>
+    <string name="backup_err_replace_rejected">Ersetzen abgebrochen, nichts wurde gelöscht: Die Sicherung enthält Profile, die nicht importiert werden können (unbekannte Ordnerstruktur, Sicherung aus einer neueren Version?): %1$s</string>
+    <string name="log_clear_title">Gesamten Verlauf löschen?</string>
+    <string name="log_clear_text">%1$d Einträge werden gelöscht. Direkt danach kannst du das mit «Rückgängig» zurücknehmen. Mit «Verlauf teilen» kannst du sie vorher sichern.</string>
+    <string name="log_cleared">Verlauf gelöscht</string>
+    <string name="log_undo">Rückgängig</string>
+    <string name="log_advice_missing">Die Datei existiert auf dem Handy nicht mehr. Synchronisiere erneut; bleibt der Fehler, die Dateiliste im Profil prüfen.</string>
+    <string name="log_advice_connection">Verbindung zum PC prüfen (WLAN, Freigabe), dann erneut synchronisieren.</string>
+    <string name="log_advice_unknown">Synchronisiere erneut. Bleibt der Fehler, teile den Verlauf mit dem Entwickler.</string>
+</resources>

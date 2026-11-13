@@ -1,0 +1,169 @@
+package com.sync2pc.app.mirror
+
+import android.content.Context
+
+/**
+ * "Papierkorb leeren" (0.6.0): Welche Datumsordner endgültig gelöscht werden. Rein bis auf [PurgeStore],
+ * getestet in TrashPurgeTest.
+ */
+data class PurgeRule(
+    val mode: Mode,
+    /** OLDER: Datumsordner vor diesem Stichtag ("yyyy-MM-dd", siehe TrashPolicy.cutoff) */
+    val before: String = "",
+    /** DATES: genau diese Tage */
+    val dates: Set<String> = emptySet(),
+) {
+    enum class Mode { ALL, OLDER, DATES }
+
+    /** Gilt die Regel für diesen Datumsordner? */
+    fun matches(date: String): Boolean = when (mode) {
+        Mode.ALL -> true
+        Mode.OLDER -> TrashPolicy.isExpired(date, before)
+        Mode.DATES -> date in dates
+    }
+
+    /** Für die Vormerkung: "ALL", "OLDER:2026-10-04", "DATES:2026-11-01,2026-11-02" */
+    fun encode(): String = when (mode) {
+        Mode.ALL -> "ALL"
+        Mode.OLDER -> "OLDER:$before"
+        Mode.DATES -> "DATES:" + dates.sorted().joinToString(",")
+    }
+
+    companion object {
+        fun older(days: Int, now: Long = System.currentTimeMillis()) = PurgeRule(Mode.OLDER, before = TrashPolicy.cutoff(days, now))
+
+        fun decode(s: String): PurgeRule? = when {
+            s == "ALL" -> PurgeRule(Mode.ALL)
+            s.startsWith("OLDER:") -> PurgeRule(Mode.OLDER, before = s.removePrefix("OLDER:")).takeIf { it.before.isNotEmpty() }
+            s.startsWith("DATES:") -> s.removePrefix("DATES:").split(',').filter { it.isNotBlank() }.toSet()
+                .takeIf { it.isNotEmpty() }?.let { PurgeRule(Mode.DATES, dates = it) }
+            else -> null
+        }
+    }
+}
+
+/** Welche Seite geleert wird */
+enum class PurgeSides(@androidx.annotation.StringRes private val labelRes: Int, val local: Boolean, val remote: Boolean) {
+    BOTH(com.sync2pc.app.R.string.sides_both, true, true),
+    LOCAL(com.sync2pc.app.R.string.sides_phone_only, true, false),
+    REMOTE(com.sync2pc.app.R.string.sides_pc_only, false, true);
+
+    val label: String get() = com.sync2pc.app.l10n.str(labelRes)
+}
+
+object TrashPurge {
+    /**
+     * Einträge, die die Regel auf den gewählten Seiten treffen würde. [reserved] (siehe [key]) sind zum
+     * Wiederherstellen vorgemerkt und bleiben immer liegen (0.7.0).
+     */
+    fun affected(
+        entries: List<TrashEntry>, rule: PurgeRule, sides: PurgeSides, reserved: Set<String> = emptySet(),
+    ): List<TrashEntry> =
+        entries.filter {
+            (if (it.side == Side.LOCAL) sides.local else sides.remote) && rule.matches(it.date) && key(it) !in reserved
+        }
+
+    /** Vorgemerkte Einträge, die die Regel ohne den Schutz treffen würde (für den Hinweis in der Rückfrage) */
+    fun protectedHits(entries: List<TrashEntry>, rule: PurgeRule, sides: PurgeSides, reserved: Set<String>): Int =
+        affected(entries, rule, sides).count { key(it) in reserved }
+
+    fun bytes(entries: List<TrashEntry>): Long = entries.sumOf { it.size }
+
+    /** Was beim Ausführen eines bestätigten Aufräumens wirklich gelöscht wird (0.11.10, DEC-144) */
+    data class ConfirmedPlan(
+        /** Ganze Datumsordner ("<Papierkorb>/<Datum>"), deren aktueller Inhalt vollständig bestätigt war */
+        val wholeDirs: List<String>,
+        /** Sonst nur die bestätigten Dateien */
+        val files: List<TrashEntry>,
+    )
+
+    /**
+     * Nur der bestätigte Stand wird ausgeführt: [current] ist der Inhalt des Papierkorbs *jetzt* (unter der Sperre
+     * eingelesen), [confirmed] die Einträge, die der Benutzer vor dem Bestätigen gesehen hat. Gelöscht wird nur, was
+     * jetzt noch mit gleicher Grösse vorhanden ist und nicht zum Wiederherstellen vorgemerkt ([reserved]). Ein
+     * Datumsordner wird nur ganz gelöscht, wenn alle seine aktuellen Einträge bestätigt sind – hat ein Sync inzwischen
+     * etwas dazugelegt, bleibt das liegen.
+     */
+    fun planConfirmed(current: List<TrashEntry>, confirmed: List<TrashEntry>, reserved: Set<String>): ConfirmedPlan {
+        val now = current.associateBy { key(it) }
+        val ok = HashSet<String>()
+        for (c in confirmed) {
+            val cur = now[key(c)] ?: continue
+            if (cur.size == c.size && key(cur) !in reserved) ok += key(cur)
+        }
+        val whole = ArrayList<String>()
+        val files = ArrayList<TrashEntry>()
+        val byDir = current.groupBy { dateDir(it.trashPath)?.lowercase() }
+        for ((dir, inDir) in byDir) {
+            if (dir != null && inDir.all { key(it) in ok }) whole += dateDir(inDir.first().trashPath)!!
+            else files += inDir.filter { key(it) in ok }
+        }
+        return ConfirmedPlan(whole, files)
+    }
+
+    /** "<Papierkorb>/<Datum>" aus einem Papierkorb-Pfad, null wenn der Pfad zu kurz ist */
+    fun dateDir(trashPath: String): String? {
+        val p = trashPath.split('/')
+        return if (p.size >= 3) p[0] + "/" + p[1] else null
+    }
+
+    /** Eindeutiger Schlüssel eines Papierkorb-Eintrags: Seite + Pfad (Kleinbuchstaben) */
+    fun key(e: TrashEntry): String = key(e.side.name, e.trashPath)
+    fun key(side: String, trashPath: String): String = side + "|" + trashPath.lowercase()
+
+    /** Schlüssel aller vorgemerkten Wiederherstellungen */
+    fun reservedKeys(pending: List<com.sync2pc.app.data.PendingRestore>): Set<String> =
+        pending.map { key(it.side, it.trashPath) }.toSet()
+
+    /** Papierkorb-Pfade (Kleinbuchstaben) der vorgemerkten Wiederherstellungen einer Seite */
+    fun reservedPaths(pending: List<com.sync2pc.app.data.PendingRestore>, side: Side): Set<String> =
+        pending.filter { it.side == side.name }.map { it.trashPath.lowercase() }.toSet()
+}
+
+/**
+ * Vorgemerktes Leeren auf dem PC (PC war nicht erreichbar). Der nächste Ordner-Sync mit PC führt es aus
+ * (MirrorEngine.runPendingPurges). Regeln + einzelne Dateien je Profil, in SharedPreferences.
+ */
+class PurgeStore(context: Context) {
+    private val prefs = context.applicationContext.getSharedPreferences("purge", Context.MODE_PRIVATE)
+
+    fun rules(profileId: Long): List<PurgeRule> =
+        (prefs.getStringSet("rules_$profileId", emptySet()) ?: emptySet()).mapNotNull { PurgeRule.decode(it) }
+
+    /** Einzelne Dateien im PC-Papierkorb (Pfade relativ zum Profilordner) */
+    fun files(profileId: Long): Set<String> = prefs.getStringSet("files_$profileId", emptySet()) ?: emptySet()
+
+    fun addRule(profileId: Long, rule: PurgeRule) {
+        prefs.edit().putStringSet("rules_$profileId", (prefs.getStringSet("rules_$profileId", emptySet()).orEmpty() + rule.encode())).apply()
+    }
+
+    fun addFiles(profileId: Long, paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        prefs.edit().putStringSet("files_$profileId", files(profileId) + paths).apply()
+    }
+
+    fun hasPending(profileId: Long): Boolean = rules(profileId).isNotEmpty() || files(profileId).isNotEmpty()
+
+    /** Anzahl Profile mit vorgemerktem Leeren (Hinweis auf der Startseite) */
+    fun pendingProfiles(): Set<Long> = prefs.all.keys.filter { it.startsWith("rules_") || it.startsWith("files_") }
+        .mapNotNull { it.substringAfter('_', "").toLongOrNull()?.takeIf { id -> hasPending(id) } }.toSet()
+
+    fun clear(profileId: Long) { prefs.edit().remove("rules_$profileId").remove("files_$profileId").apply() }
+
+    // ---- Zuletzt gemessene Grösse (für die Kachel auf der Startseite, ohne jedes Mal den PC abzufragen) ----
+    /** [remoteBytes] < 0 = PC war nicht erreichbar, letzter bekannter Wert bleibt */
+    fun saveSizes(profileId: Long, localBytes: Long, remoteBytes: Long) {
+        val e = prefs.edit().putLong("sizeLocal_$profileId", localBytes)
+        if (remoteBytes >= 0) e.putLong("sizeRemote_$profileId", remoteBytes)
+        e.apply()
+    }
+
+    /** (Handy, PC) in Bytes; -1 = noch nie gemessen */
+    fun sizes(profileId: Long): Pair<Long, Long> =
+        prefs.getLong("sizeLocal_$profileId", -1) to prefs.getLong("sizeRemote_$profileId", -1)
+
+    fun forget(profileId: Long) {
+        prefs.edit().remove("rules_$profileId").remove("files_$profileId")
+            .remove("sizeLocal_$profileId").remove("sizeRemote_$profileId").apply()
+    }
+}

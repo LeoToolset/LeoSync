@@ -1,0 +1,425 @@
+package com.sync2pc.app.data
+
+import androidx.annotation.StringRes
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import com.sync2pc.app.R
+import com.sync2pc.app.l10n.str
+
+/** Was nach erfolgreichem (verifiziertem) Upload mit der Quelldatei passiert. */
+enum class DeleteMode(@StringRes private val labelRes: Int) {
+    KEEP(R.string.delete_mode_keep),
+    TRASH(R.string.delete_mode_trash),
+    DELETE(R.string.delete_mode_delete);
+
+    val label: String get() = str(labelRes)
+
+    companion object {
+        fun of(name: String?): DeleteMode = entries.firstOrNull { it.name == name } ?: KEEP
+    }
+}
+
+/** Profiltyp: Bildordner (sortiert nach Jahr/Monat/Land) oder normaler Ordner (1:1-Spiegelung). */
+enum class ProfileType(@StringRes private val labelRes: Int) {
+    PHOTOS(R.string.profile_type_label_photos),
+    MIRROR(R.string.profile_type_label_mirror);
+
+    val label: String get() = str(labelRes)
+
+    companion object {
+        fun of(name: String?): ProfileType = entries.firstOrNull { it.name == name } ?: PHOTOS
+    }
+}
+
+/** Sync-Richtung (nur für normale Ordner; Bildordner immer Handy → PC). */
+enum class SyncDirection(@StringRes private val labelRes: Int, @StringRes private val shortRes: Int) {
+    UPLOAD(R.string.direction_upload, R.string.direction_upload_short),
+    DOWNLOAD(R.string.direction_download, R.string.direction_download_short),
+    BOTH(R.string.direction_both, R.string.direction_both_short);
+
+    val label: String get() = str(labelRes)
+    val short: String get() = str(shortRes)
+    /** Bezeichnung als Kennung (Verlauf, 0.12.1) */
+    val labelMsg: com.sync2pc.app.l10n.Msg get() = com.sync2pc.app.l10n.Msg.of(labelRes)
+
+    val up: Boolean get() = this != DOWNLOAD
+    val down: Boolean get() = this != UPLOAD
+
+    companion object {
+        fun of(name: String?): SyncDirection = entries.firstOrNull { it.name == name } ?: UPLOAD
+    }
+}
+
+/**
+ * Prüfung nach dem Hochladen (0.9.0, nur Fotos-Profile). [code] steht in der DB (`profiles.verifyLevel`).
+ * OFF vergleicht nur die Grösse und ist nur erlaubt, solange die Fotos auf dem Handy bleiben.
+ * Bereiche je Stufe: [com.sync2pc.app.sync.PartialHash.levelRegions].
+ */
+enum class VerifyLevel(val code: Int, @StringRes private val labelRes: Int, @StringRes private val subRes: Int) {
+    OFF(0, R.string.verify_off, R.string.verify_off_sub),
+    LOW(1, R.string.verify_low, R.string.verify_low_sub),
+    MEDIUM(2, R.string.verify_medium, R.string.verify_medium_sub),
+    HIGH(3, R.string.verify_high, R.string.verify_high_sub),
+    FULL(4, R.string.verify_full, R.string.verify_full_sub);
+
+    val label: String get() = str(labelRes)
+    val sub: String get() = str(subRes)
+
+    companion object {
+        fun of(code: Int): VerifyLevel = entries.firstOrNull { it.code == code } ?: MEDIUM
+    }
+}
+
+/**
+ * Ordnerstruktur auf dem PC (nur Fotos-Profile, SYNC-20261109-083). [code] steht in der DB (`profiles.folderLayout`)
+ * und in der Sicherung; die Codes dürfen sich nie ändern.
+ * `<…>` = Platzhalter, `[…]` = nur wenn zutreffend; in der letzten Ebene liegen direkt die Dateien.
+ */
+enum class FolderLayout(val code: String, @StringRes private val labelRes: Int) {
+    /** V1: Jahr\MM[ - Land] (bisheriger Stand, Standard) */
+    MONTH_SUFFIX("MONTH_SUFFIX", R.string.folder_layout_month_suffix),
+    /** V2: Jahr\[Land\]MM */
+    COUNTRY_FOLDER("COUNTRY_FOLDER", R.string.folder_layout_country_folder),
+    /** V3: Jahr\MM\[Land] */
+    COUNTRY_SUBFOLDER("COUNTRY_SUBFOLDER", R.string.folder_layout_country_subfolder);
+
+    val label: String get() = str(labelRes)
+
+    companion object {
+        /** Für DB-Werte: unbekannt/leer = V1 (nur beim Lesen aus der DB; Sicherungen siehe [parse]) */
+        fun of(code: String?): FolderLayout = parse(code) ?: MONTH_SUFFIX
+
+        /** Streng: null = unbekannter Code (kein stilles Zurückfallen auf V1) */
+        fun parse(code: String?): FolderLayout? = entries.firstOrNull { it.code == code }
+    }
+}
+
+/** Verhalten bei Konflikt (Datei auf beiden Seiten geändert, nur beidseitig). */
+enum class ConflictMode(@StringRes private val labelRes: Int) {
+    ASK(R.string.conflict_mode_ask),
+    NEWER(R.string.conflict_mode_newer);
+
+    val label: String get() = str(labelRes)
+
+    companion object {
+        fun of(name: String?): ConflictMode = entries.firstOrNull { it.name == name } ?: ASK
+    }
+}
+
+/** Ein Sync-Profil: Ziel-Share, Zugangsdaten, Quellordner, WLANs, Optionen. */
+@Entity(tableName = "profiles")
+data class Profile(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String = "Standard",
+    val enabled: Boolean = true,
+    /** z. B. \\fs01.local\Fotos oder \\fs01.local\Fotos\Handy */
+    val smbPath: String = "",
+    val smbUser: String = "",
+    val smbDomain: String = "",
+    /** Mit Android-Keystore verschlüsselt (Base64), siehe CredentialCrypto */
+    val smbPasswordEnc: String = "",
+    /** Relative Pfade (MediaStore RELATIVE_PATH), zeilengetrennt, z. B. "DCIM/Camera/" */
+    val sourceFolders: String = "",
+    /** Erlaubte WLAN-Namen, zeilengetrennt */
+    val wifiSsids: String = "",
+    val includeImages: Boolean = true,
+    val includeVideos: Boolean = true,
+    val includeSubfolders: Boolean = true,
+    val deleteMode: String = DeleteMode.KEEP.name,
+    /** Bis 0.8.x die einzige Prüf-Einstellung; seit 0.9.0 nur noch Spiegel von [verifyLevel] != OFF */
+    val verifyUpload: Boolean = true,
+    // ---- seit DB v2 (0.0.7) ----
+    val profileType: String = ProfileType.PHOTOS.name,
+    val direction: String = SyncDirection.UPLOAD.name,
+    /** SAF-Ordner-URI auf dem Handy (nur MIRROR), mit dauerhafter Lese-/Schreibberechtigung */
+    val localTreeUri: String = "",
+    /** Optionaler Unterordner auf dem Share, relativ zum Freigabe-Pfad (z. B. "Dokumente\Handy") */
+    val remoteSubfolder: String = "",
+    /** Löschungen auf die Gegenseite übernehmen (in deren .LeoSync-Papierkorb) */
+    val propagateDeletes: Boolean = false,
+    val conflictMode: String = ConflictMode.ASK.name,
+    /** Whitelist (Muster wie *.pdf), zeilen-/kommagetrennt; leer = alles */
+    val includePatterns: String = "",
+    /** Blacklist (Muster wie Thumbs.db, *.tmp) */
+    val excludePatterns: String = "",
+    /** Wie oft auf Änderungen geprüft wird, solange im WLAN (Minuten, nur MIRROR) */
+    val remotePollMinutes: Int = 60,
+    // ---- seit DB v3 (0.1.0) ----
+    /** Papierkorb-Ordner älter als so viele Tage endgültig löschen (nur MIRROR), 0 = nie */
+    val trashRetentionDays: Int = 30,
+    // ---- seit DB v4 (0.4.2) ----
+    /** Schutzbremse (nur MIRROR): ab diesem Anteil gelöschter Dateien (Prozent) nachfragen, Standard 20 */
+    val massDeletePercent: Int = 20,
+    // ---- seit DB v5 (0.5.0) ----
+    /** Versionsschutz (nur MIRROR): überschriebene Versionen kommen in den Papierkorb statt gelöscht zu werden */
+    val keepVersions: Boolean = true,
+    // ---- seit DB v6 (0.9.0) ----
+    /** Prüfstufe nach dem Hochladen ([VerifyLevel.code]), Standard Mittel */
+    val verifyLevel: Int = 2,
+    // ---- seit DB v8 (SYNC-20261109-047) ----
+    /** PC-Erkennung: WIFI (nur WLAN-Name), GUID (nur PC-Kennung) oder BOTH */
+    val pcCheck: String = "WIFI",
+    /** Gelernte PC-Kennung (leer = noch nicht gelernt) */
+    val pcGuid: String = "",
+    /** Host (kleingeschrieben), zu dem [pcGuid] gelernt wurde */
+    val pcGuidHost: String = "",
+    // ---- seit DB v9 (SYNC-20261109-083) ----
+    /** Ordnerstruktur auf dem PC ([FolderLayout.code], nur Fotos); nach dem ersten Sync nicht mehr änderbar (SyncDao.updateProfile) */
+    val folderLayout: String = FolderLayout.MONTH_SUFFIX.code,
+    // ---- seit DB v10 (SYNC-20261111-144) ----
+    /** SMB3-Verschlüsselung ([SmbEncryption.name]): OFF, PREFERRED (Standard) oder REQUIRED */
+    val smbEncryption: String = SmbEncryption.PREFERRED.name,
+) {
+    fun encryption(): SmbEncryption = SmbEncryption.parse(smbEncryption)
+    fun layout(): FolderLayout = FolderLayout.of(folderLayout)
+    fun folders(): List<String> = splitLines(sourceFolders)
+    fun ssids(): List<String> = splitLines(wifiSsids)
+    /** Erkennungsart (unbekannt/leer = WIFI, heutiges Verhalten) */
+    fun pcMode(): com.sync2pc.app.sync.PcCheckMode = com.sync2pc.app.sync.PcCheckMode.parse(pcCheck)
+    fun delete(): DeleteMode = if (type() == ProfileType.PHOTOS) DeleteMode.of(deleteMode) else DeleteMode.KEEP
+    /** Wirksame Prüfstufe: Wer Fotos vom Handy entfernt, prüft immer (mindestens Mittel, wie in der Oberfläche). */
+    fun verify(): VerifyLevel = VerifyLevel.of(verifyLevel).let {
+        if (it == VerifyLevel.OFF && delete() != DeleteMode.KEEP) VerifyLevel.MEDIUM else it
+    }
+    /** Beim Löschen ist die Prüfung immer Pflicht. */
+    fun mustVerify(): Boolean = verify() != VerifyLevel.OFF
+    fun type(): ProfileType = ProfileType.of(profileType)
+    /** Bildordner sind immer Handy → PC */
+    fun dir(): SyncDirection = if (type() == ProfileType.PHOTOS) SyncDirection.UPLOAD else SyncDirection.of(direction)
+    fun conflict(): ConflictMode = ConflictMode.of(conflictMode)
+    /** Genug eingerichtet, um zu synchronisieren? */
+    fun isConfigured(): Boolean = smbPath.isNotBlank() &&
+        (if (type() == ProfileType.PHOTOS) folders().isNotEmpty() else localTreeUri.isNotBlank())
+
+    companion object {
+        fun splitLines(s: String): List<String> =
+            s.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        fun joinLines(list: Collection<String>): String =
+            list.map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString("\n")
+    }
+}
+
+object DeleteState {
+    const val NONE = 0
+    /** Löschen gewünscht, wartet auf andere Profile, die die Datei auch sichern */
+    const val WANTED = 1
+    /** Bereit für Papierkorb, wartet auf Bestätigung durch den Benutzer (Android 11+) */
+    const val QUEUED_TRASH = 2
+    const val DONE = 3
+    /** Bereit für endgültiges Löschen, wartet auf Bestätigung (Android 11+) */
+    const val QUEUED_DELETE = 4
+}
+
+/** Datei, die von einem Profil bereits auf den Share übertragen wurde. */
+@Entity(
+    tableName = "synced_files",
+    primaryKeys = ["profileId", "sourceKey"],
+    indices = [Index("deleteState")]
+)
+data class SyncedFile(
+    val profileId: Long,
+    /** RELATIVE_PATH + DISPLAY_NAME, z. B. "DCIM/Camera/IMG_1.jpg" */
+    val sourceKey: String,
+    val mediaUri: String,
+    val size: Long,
+    val dateModified: Long,
+    val partialHash: String?,
+    /** Pfad relativ zur Share-Wurzel */
+    val remotePath: String,
+    val syncedAt: Long,
+    val verified: Boolean,
+    val deleteState: Int = DeleteState.NONE,
+)
+
+/** Kompakte Sicht für den schnellen Abgleich zu Beginn eines Laufs. */
+data class SyncedLite(
+    val sourceKey: String,
+    val size: Long,
+    val dateModified: Long,
+)
+
+/**
+ * Stand einer Datei beim letzten erfolgreichen Abgleich (Ordner-Spiegelung).
+ * Grundlage des 3-Wege-Vergleichs: Was hat sich seitdem auf welcher Seite geändert / wurde gelöscht?
+ */
+@Entity(tableName = "mirror_state", primaryKeys = ["profileId", "relPath"])
+data class MirrorState(
+    val profileId: Long,
+    /** Relativer Pfad in Kleinbuchstaben mit "/" (Schlüssel) */
+    val relPath: String,
+    val localSize: Long,
+    val localModified: Long,
+    val remoteSize: Long,
+    val remoteModified: Long,
+    val syncedAt: Long,
+)
+
+/**
+ * Vorgemerkte Wiederherstellung aus dem Papierkorb (0.5.0). Der nächste Ordner-Sync mit erreichbarem PC führt sie
+ * aus: aktuelle Version in den Papierkorb, alte Version an den ursprünglichen Ort, auf beide Seiten kopieren.
+ */
+@androidx.room.Entity(tableName = "pending_restores")
+data class PendingRestore(
+    @androidx.room.PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    /** "LOCAL" (Handy) oder "REMOTE" (PC): wo die alte Version im Papierkorb liegt */
+    val side: String,
+    /** Pfad der alten Version relativ zum Profilordner, z. B. ".LeoSync-Papierkorb/2026-11-03/Docs/a.txt" */
+    val trashPath: String,
+    /** Ursprünglicher Pfad relativ zum Profilordner, z. B. "Docs/a.txt" */
+    val origPath: String,
+    val requestedAt: Long,
+)
+
+object ConflictResolution {
+    const val KEEP_LOCAL = "LOCAL"
+    const val KEEP_REMOTE = "REMOTE"
+    const val KEEP_BOTH = "BOTH"
+}
+
+/** Konflikt, der auf eine Benutzerentscheidung wartet (resolution = null) oder entschieden ist. */
+@Entity(tableName = "mirror_conflicts", primaryKeys = ["profileId", "relPath"])
+data class MirrorConflict(
+    val profileId: Long,
+    /** Relativer Pfad wie angezeigt (Originalschreibweise) */
+    val relPath: String,
+    val localSize: Long,
+    val localModified: Long,
+    val remoteSize: Long,
+    val remoteModified: Long,
+    val detectedAt: Long,
+    val resolution: String? = null,
+)
+
+/** Zeile für die Statistik (synchronisierte Datei + Analyse-Infos, falls vorhanden). */
+data class StatRow(
+    val sourceKey: String,
+    val remotePath: String,
+    val size: Long,
+    val year: Int?,
+    val countryIso: String?,
+    val countryName: String?,
+)
+
+/** Anzahl je Lösch-Zustand (Diagnose). */
+data class StateCount(val state: Int, val count: Int)
+
+/** Benutzerentscheidung: Gruppe (Jahr/Monat/Land) -> Monatsordner. */
+@Entity(tableName = "folder_mappings", primaryKeys = ["profileId", "groupKey"])
+data class FolderMapping(
+    val profileId: Long,
+    /** "2026/06/EG" bzw. "2026/06/-" ohne Land */
+    val groupKey: String,
+    val folderName: String,
+    /** true, sobald der Ordner auf dem Share existiert hat. Verschwindet er danach, wird neu gefragt. */
+    val seen: Boolean = false,
+)
+
+/** Offene Frage an den Benutzer: In welchen vorhandenen Monatsordner? */
+@Entity(tableName = "pending_decisions", primaryKeys = ["profileId", "groupKey"])
+data class PendingDecision(
+    val profileId: Long,
+    val groupKey: String,
+    val year: Int,
+    val month: Int,
+    val countryIso: String?,
+    val countryName: String?,
+    val defaultName: String,
+    /** Vorhandene, passende Ordner (zeilengetrennt) */
+    val candidates: String,
+    val fileCount: Int,
+    val totalBytes: Long,
+    /** Einige content://-URIs für Vorschaubilder (zeilengetrennt) */
+    val sampleUris: String,
+    val updatedAt: Long,
+)
+
+/** Zwischenspeicher der Analyse (Datum/Land), damit Dateien nicht mehrfach geöffnet werden. */
+@Entity(tableName = "media_info")
+data class MediaInfo(
+    @PrimaryKey val sourceKey: String,
+    val size: Long,
+    val dateModified: Long,
+    val year: Int,
+    val month: Int,
+    /** EXIF, META, FILENAME, MODIFIED */
+    val dateSource: String,
+    val latitude: Double?,
+    val longitude: Double?,
+    val countryIso: String?,
+    val countryName: String?,
+)
+
+/**
+ * Zustand eines Laufs (0.9.4). Feste Konstanten statt freier Texte im Code, damit ein Tippfehler nicht erst zur
+ * Laufzeit auffällt. In der DB steht derselbe Text (keine Migration); SQL-Abfragen nutzen ihn direkt ('OK' …).
+ */
+object RunStatus {
+    const val RUNNING = "RUNNING"
+    const val OK = "OK"
+    const val PARTIAL = "PARTIAL"
+    const val FAILED = "FAILED"
+    const val CANCELLED = "CANCELLED"
+    const val INTERRUPTED = "INTERRUPTED"
+    const val WAITING = "WAITING"
+}
+
+@Entity(tableName = "sync_runs")
+data class SyncRun(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val profileName: String,
+    val trigger: String,
+    val dryRun: Boolean,
+    val startedAt: Long,
+    val finishedAt: Long? = null,
+    /** RUNNING, OK, PARTIAL, FAILED, CANCELLED */
+    val status: String = RunStatus.RUNNING,
+    val uploaded: Int = 0,
+    val skipped: Int = 0,
+    val failed: Int = 0,
+    val waiting: Int = 0,
+    val bytes: Long = 0,
+    /** Fertiger Kurztext in der Sprache beim Schreiben: Rückfall für alte Einträge ([messageCode] = null) */
+    val message: String = "",
+    // ---- seit DB v7 (0.12.0): Kennungen statt fertiger Texte (DEC-159), siehe [com.sync2pc.app.l10n.Msg] ----
+    /** Kurztext als Kennung (JSON); null = nur [message] */
+    val messageCode: String? = null,
+    /** Auslöser als Kennung (JSON); null = nur [trigger] */
+    val triggerCode: String? = null,
+    /** seit DB v11 (SYNC-20261111-173): Dateien, die im Lauf übersprungen wurden, weil sie sich währenddessen änderten; sie folgen beim nächsten Sync. Nicht [skipped] (bei Fotoprofilen «schon vorhanden»). */
+    val deferred: Int = 0,
+)
+
+@Entity(tableName = "log_entries", indices = [Index("runId")])
+data class LogEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val runId: Long,
+    val time: Long,
+    /** I, W, E */
+    val level: String,
+    /** Fertiger Text in der Sprache beim Schreiben: Rückfall und Text der Diagnose (DEC-160) */
+    val message: String,
+    /** seit DB v7 (0.12.0): Zeile als Kennung (JSON); null = nur [message] */
+    val code: String? = null,
+)
+
+/** SMB3-Verschlüsselung pro Profil (SYNC-20261111-144): Aus, Wenn möglich (Standard), Erforderlich */
+enum class SmbEncryption {
+    OFF, PREFERRED, REQUIRED;
+
+    companion object {
+        /**
+         * Fehlender oder leerer Wert (ältere Sicherung, Profil ohne Angabe) = PREFERRED. Ein vorhandener, aber unbekannter
+         * Wert (z. B. aus einer neueren App-Version) = REQUIRED: sicherer Ausfall, nie stillschweigend weniger Schutz
+         * (SYNC-20261111-172).
+         */
+        fun parse(s: String?): SmbEncryption {
+            val v = s?.trim()?.uppercase().orEmpty()
+            if (v.isEmpty()) return PREFERRED
+            return entries.firstOrNull { it.name == v } ?: REQUIRED
+        }
+    }
+}

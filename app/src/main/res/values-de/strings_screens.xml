@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ordnerauswahl (DecisionScreen) -->
+    <string name="trigger_folder_choice">Ordnerauswahl</string>
+    <string name="decision_title">Ordnerauswahl</string>
+    <string name="decision_apply_all">Alle übernehmen</string>
+    <string name="decision_none">Keine offenen Entscheidungen.</string>
+    <string name="decision_hint">Für diese Monate gibt es auf dem PC bereits umbenannte Ordner. Wähle, wohin die Dateien sollen. Die Wahl gilt für alle Dateien der Gruppe und wird gemerkt.</string>
+    <plurals name="decision_files">
+        <item quantity="one">%1$s Datei (%2$s)</item>
+        <item quantity="other">%1$s Dateien (%2$s)</item>
+    </plurals>
+    <string name="decision_profile">Profil: %1$s</string>
+    <string name="decision_new_folder">Neuer Ordner: %1$s</string>
+    <string name="decision_custom_name">Eigener Name…</string>
+    <string name="decision_folder_name">Ordnername (muss %1$s enthalten)</string>
+    <string name="decision_none_hint">Hier fragt LeoSync, wenn es für einen Monat mehrere umbenannte Ordner auf dem PC gibt.</string>
+    <string name="decision_choose_first">Wähle einen Ordner, um zu übernehmen.</string>
+    <plurals name="decision_snack_one">
+        <item quantity="one">%1$s Datei wird nach %2$s übertragen</item>
+        <item quantity="other">%1$s Dateien werden nach %2$s übertragen</item>
+    </plurals>
+    <plurals name="decision_snack_all">
+        <item quantity="one">%1$s Datei wird übertragen (%2$s)</item>
+        <item quantity="other">%1$s Dateien werden übertragen (%2$s)</item>
+    </plurals>
+    <plurals name="decision_n_groups">
+        <item quantity="one">%1$s Gruppe</item>
+        <item quantity="other">%1$s Gruppen</item>
+    </plurals>
+    <plurals name="decision_n_files">
+        <item quantity="one">%1$s Datei</item>
+        <item quantity="other">%1$s Dateien</item>
+    </plurals>
+    <plurals name="decision_all_confirm">
+        <item quantity="one">%1$s Gruppe mit %2$s wird übernommen. Gruppen ohne Wahl bleiben offen.</item>
+        <item quantity="other">%1$s Gruppen mit %2$s werden übernommen. Gruppen ohne Wahl bleiben offen.</item>
+    </plurals>
+
+    <!-- Konflikte (ConflictScreen) -->
+    <string name="trigger_conflicts">Konfliktlösung</string>
+    <string name="conflict_title">Konflikte</string>
+    <string name="conflict_all_newer">Alle: neuere</string>
+    <string name="conflict_none">Keine offenen Konflikte.</string>
+    <string name="conflict_hint">Diese Dateien wurden auf dem Handy und auf dem PC geändert. Wähle, welche Version gilt. Die andere Version wird in den Ordner „%1$s“ verschoben, nicht gelöscht. Die Auswahl wird bei der nächsten Synchronisierung im WLAN angewendet.</string>
+    <string name="conflict_newer">(neuer)</string>
+    <string name="conflict_same_age">(gleich alt)</string>
+    <string name="conflict_keep_phone">Handy behalten</string>
+    <string name="conflict_keep_pc">PC behalten</string>
+    <string name="conflict_keep_both">Beide behalten</string>
+    <string name="conflict_keep_phone_hint">Handy behalten: Die PC-Version kommt in %1$s.</string>
+    <string name="conflict_keep_pc_hint">PC behalten: Die Handy-Version kommt in %1$s.</string>
+    <string name="conflict_keep_both_hint">Beide behalten: Beide Dateien bleiben; die Handy-Version erhält den Namenszusatz %1$s.</string>
+    <string name="conflict_snack_phone">%1$s: Handy-Version behalten (gilt bei der nächsten Synchronisierung im WLAN)</string>
+    <string name="conflict_snack_pc">%1$s: PC-Version behalten (gilt bei der nächsten Synchronisierung im WLAN)</string>
+    <string name="conflict_snack_both">%1$s: beide Versionen behalten (gilt bei der nächsten Synchronisierung im WLAN)</string>
+    <plurals name="conflict_snack_all">
+        <item quantity="one">%1$s Konflikt entschieden: neuere Version behalten (gilt bei der nächsten Synchronisierung im WLAN)</item>
+        <item quantity="other">%1$s Konflikte entschieden: jeweils neuere Version behalten (gilt bei der nächsten Synchronisierung im WLAN)</item>
+    </plurals>
+    <plurals name="conflict_all_confirm">
+        <item quantity="one">%1$s Konflikt: Die neuere Version bleibt, die andere kommt nach %2$s. Fortfahren?</item>
+        <item quantity="other">%1$s Konflikte: Jeweils die neuere Version bleibt, die andere kommt nach %2$s. Fortfahren?</item>
+    </plurals>
+    <string name="conflict_undo_late">Nicht mehr rückgängig zu machen: Die Auswahl wurde bereits angewendet.</string>
+
+    <!-- Simulation (PreviewScreen) -->
+    <string name="preview_starting">Starte…</string>
+    <string name="preview_hint">Zeigt, was beim Synchronisieren passieren würde (Bildordner: Zielordner; Ordner-Synchronisierung: Aktion je Datei). Es wird nichts kopiert, angelegt oder gelöscht.</string>
+    <string name="preview_only_first">Nur die ersten</string>
+    <string name="preview_files">Dateien</string>
+    <string name="preview_all_files">Alle Dateien</string>
+    <string name="preview_all_hint">Bei vielen Fotos dauert „Alle“ länger, weil jedes Foto auf Datum und Ort ausgewertet wird.</string>
+    <string name="preview_start">Simulation starten</string>
+    <string name="preview_limit_error">Bitte eine Zahl von 1 bis 100000 eingeben.</string>
+    <string name="preview_offline_assumption">Annahme: Der PC ist nicht bekannt, die Liste geht von einem leeren PC aus. Echte Aktionen können abweichen.</string>
+    <string name="preview_nothing_to_do">Nichts zu tun – alles aktuell.</string>
+    <string name="preview_nothing_new">Nichts zu übertragen – keine neuen Dateien.</string>
+    <string name="preview_group_open">%1$s (Ordner noch offen)</string>
+    <plurals name="preview_summary">
+        <item quantity="one">%1$s Datei in %2$s</item>
+        <item quantity="other">%1$s Dateien in %2$s</item>
+    </plurals>
+    <string name="preview_needs_decision">Entscheidung nötig (Ordnerauswahl bzw. Konflikt)</string>
+    <string name="preview_more">… und %1$s weitere</string>
+
+    <!-- Statistik (StatsScreen) -->
+    <string name="stats_unknown">Unbekannt</string>
+    <string name="stats_no_location">Ohne Standortdaten</string>
+    <string name="stats_no_profile">Noch kein Profil vorhanden.</string>
+    <string name="stats_no_files">Noch keine Dateien gesichert.</string>
+    <string name="stats_total">Gesamt</string>
+    <string name="stats_photos_videos">%1$s Fotos · %2$s Videos</string>
+    <string name="stats_per_year">Pro Jahr</string>
+    <string name="stats_bar_hint">Balkenlänge = Anzahl Dateien</string>
+    <plurals name="stats_bucket_value">
+        <item quantity="one">%1$s Datei · %2$s</item>
+        <item quantity="other">%1$s Dateien · %2$s</item>
+    </plurals>
+    <string name="stats_per_country">Pro Land (aus GPS)</string>
+
+    <!-- Erste Synchronisierung, Hund -->
+    <string name="first_sync_title">Erste Synchronisierung</string>
+    <string name="first_sync_text">Die erste Synchronisierung überträgt alle vorhandenen Dateien. Je nach Menge dauert sie lange und braucht viel Akku. Schliesse das Handy am besten ans Ladegerät an.</string>
+    <string name="first_sync_start">Trotzdem starten</string>
+    <string name="dog_waiting">Wartet</string>
+    <string name="dog_idle">Alles gesichert</string>
+    <string name="dog_syncing">Synchronisiert</string>
+
+    <!-- Updates (UpdateScreen) -->
+    <string name="update_checking">Suche nach Updates…</string>
+    <string name="update_latest">Du hast die neueste Version (%1$s).</string>
+    <string name="update_downloading">Lade Version %1$s…</string>
+    <string name="update_installing">Installation wird gestartet…</string>
+    <string name="update_error">Fehler: %1$s</string>
+    <string name="update_installed">Installiert</string>
+    <string name="update_source">Quelle: github.com/%1$s (Releases)</string>
+    <string name="update_last_check">Zuletzt geprüft: %1$s</string>
+    <string name="update_daily">Täglich nach Updates suchen</string>
+    <string name="update_daily_sub">Nur im WLAN, Meldung per Benachrichtigung</string>
+    <string name="update_available">Version %1$s verfügbar</string>
+    <string name="update_size">Grösse: %1$s</string>
+    <string name="update_permission_hint">Android muss LeoSync einmalig erlauben, Apps zu installieren. Danach mit «Zurück» hierher zurückkehren.</string>
+    <string name="update_permission">Erlaubnis erteilen</string>
+    <string name="update_install">Herunterladen und installieren</string>
+    <string name="update_install_hint">Android fragt zur Bestätigung. Nach dem Update LeoSync wieder öffnen.</string>
+
+    <!-- Datenbank (SyncDao) -->
+    <string name="run_dangling_log">Unterbrochen – die App wurde beendet (z. B. durch ein Update). Der Rest folgt bei der nächsten Synchronisierung.</string>
+    <string name="run_dangling">Unterbrochen – App wurde beendet (z. B. Update), Rest folgt bei der nächsten Synchronisierung</string>
+    <string name="update_offline">Update-Prüfung nicht möglich. Keine Verbindung zum Internet. Verbinde dich mit dem WLAN und versuche es erneut.</string>
+    <string name="update_check_again">Erneut prüfen</string>
+    <string name="update_check_now">Jetzt prüfen</string>
+    <string name="update_changes_link">Änderungen auf GitHub ansehen</string>
+    <string name="update_download_cancelled">Download abgebrochen.</string>
+</resources>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Einstellungen (SettingsScreen) -->
+    <string name="settings_notifications">Benachrichtigungen</string>
+    <string name="settings_transfer">Übertragung</string>
+    <string name="settings_permissions">App-Berechtigungen</string>
+    <string name="settings_app">Sprache &amp; Sicherung</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_diagnose">Diagnose</string>
+    <string name="settings_help">Hilfe &amp; Produktseite</string>
+
+    <string name="settings_notify_summary">Meldung nach jeder Synchronisierung</string>
+    <string name="settings_notify_summary_sub">z. B. „3 Dateien übertragen“</string>
+    <string name="settings_notify_update">Update verfügbar</string>
+    <string name="settings_notify_update_sub">Neue Version gefunden bzw. installiert</string>
+    <string name="settings_notify_hints">Hinweise</string>
+    <string name="settings_notify_hints_sub">Ordnerauswahl nötig, Konflikte, Dateien entfernen, Fehler. Erscheinen auch ohne Benachrichtigung auf der Startseite.</string>
+    <string name="settings_notify_fixed">Die Fortschrittsanzeige während einer Synchronisierung und „Pausiert – wartet auf WLAN“ lassen sich nicht abschalten: Android verlangt sie, damit die Synchronisierung im Hintergrund weiterlaufen bzw. fortgesetzt werden kann.</string>
+    <string name="settings_notify_android">Android-Einstellungen für Benachrichtigungen</string>
+
+    <string name="settings_stale">Erinnerung</string>
+    <string name="settings_stale_switch">Erinnern, wenn lange nicht gesichert</string>
+    <string name="settings_stale_sub">Nur wenn neue Fotos/Videos warten. Wiederholt sich alle %1$s Tage.</string>
+    <string name="settings_stale_days">Nach … Tagen ohne Sicherung</string>
+
+    <string name="settings_auto">Automatik</string>
+    <string name="settings_auto_wifi">Synchronisieren beim Verbinden mit Heim-WLAN</string>
+    <string name="settings_auto_wifi_sub">Startet sofort, wenn ein WLAN eines Profils verbunden wird</string>
+    <string name="settings_auto_offwifi">Auch über mobile Daten oder VPN synchronisieren</string>
+    <string name="settings_auto_offwifi_sub">Ausserhalb des WLANs wird der WLAN-Name nicht geprüft. Startet bei neuen Fotos, über das Sicherheitsnetz und die Ordnerprüfung. Kann viel Datenvolumen verbrauchen und Kosten beim Mobilfunkabo verursachen (z. B. im Ausland). Der PC muss erreichbar sein (VPN).</string>
+    <string name="settings_auto_new">Neue Fotos/Videos sofort übertragen</string>
+    <string name="settings_auto_new_sub">Nur, wenn gerade ein Heim-WLAN verbunden ist</string>
+    <string name="settings_auto_charging">Nur beim Laden</string>
+    <string name="settings_auto_charging_sub">Automatische Synchronisierungen nur am Ladegerät (manuelles Synchronisieren immer möglich)</string>
+    <string name="settings_min_age">Mindestalter einer Datei (Minuten)</string>
+    <string name="settings_min_age_hint">Verhindert, dass Fotos übertragen werden, die gerade noch bearbeitet werden.</string>
+
+    <string name="settings_parallel">Parallele Übertragungen</string>
+    <string name="settings_parallel_value">Gleichzeitige Übertragungen: %1$s</string>
+    <string name="settings_parallel_hint">Mehr Verbindungen beschleunigen viele kleine Dateien. Bei grossen Videos bringt es wenig. Standard: 3</string>
+
+    <string name="settings_perm_title">Berechtigungen</string>
+    <string name="settings_perm_hint">Diese Berechtigungen braucht LeoSync für die automatische Synchronisierung im Hintergrund.</string>
+    <string name="settings_perm_app_info">App-Info öffnen</string>
+    <string name="settings_background_hint">Damit Android die Synchronisierung nicht verzögert oder abbricht, sollte die Akku-Optimierung für LeoSync aus sein.</string>
+    <string name="settings_battery">Akku-Optimierungen</string>
+    <string name="settings_vendor_extra">Zusätzlich bei %1$s:</string>
+    <string name="settings_vendor_note">Die Bezeichnungen können je nach Software-Stand leicht abweichen.</string>
+    <string name="settings_vendor_web">Anleitung im Browser</string>
+
+    <string name="settings_language">Sprache</string>
+    <string name="settings_language_system">Systemsprache</string>
+    <string name="settings_language_hint">„Systemsprache“ zeigt Deutsch, wenn das Handy auf Deutsch eingestellt ist, sonst Englisch.</string>
+
+    <string name="settings_geo_loading">Lade Länderdaten…</string>
+    <string name="settings_geo_loaded">%1$s Länder geladen (offline)</string>
+    <string name="settings_geo_missing">Länderdaten fehlen – Ordner werden ohne Land angelegt</string>
+    <string name="settings_country_folders">Länderordner</string>
+    <string name="settings_home_country">Heimatland (ISO-Code)</string>
+    <string name="settings_home_country_hint">Fotos aus diesem Land bekommen keinen Länderzusatz (Standard: CH = Schweiz).</string>
+
+    <string name="settings_diag_title">Beta / Diagnose</string>
+    <string name="settings_diag_hint">Sammelt Angaben zu Gerät, Hintergrund-Einschränkungen, Berechtigungen, Profilen und den letzten Läufen und kopiert sie in die Zwischenablage. Passwörter, Benutzernamen, IP-Adressen, Rechner-, WLAN- und Ordnernamen, Pfade und genaue Dateinamen fehlen oder sind maskiert. Geräte-ID: %1$s</string>
+    <string name="settings_diag_failed">Diagnose fehlgeschlagen: %1$s</string>
+    <string name="settings_diag_busy">Sammle Daten…</string>
+    <string name="settings_report">Problem melden</string>
+    <string name="settings_report_hint">Öffnet die Mail-App mit einer Nachricht an %1$s und den Diagnosedaten im Anhang. Es wird nichts automatisch gesendet: Nachricht prüfen und selbst senden. Die Daten können WLAN-Namen, Serveradressen und Dateinamen enthalten (keine Passwörter).</string>
+    <string name="settings_report_no_mail">Keine Mail-App gefunden. Die Adresse %1$s wurde in die Zwischenablage kopiert.</string>
+    <string name="report_subject">LeoSync %1$s – Problembericht</string>
+    <string name="report_body">Bitte beschreibe hier das Problem (was hast du gemacht, was hast du erwartet, was ist passiert?):\n\n</string>
+    <string name="report_chooser">Problem melden</string>
+    <string name="settings_diag_copy">Diagnosedaten kopieren</string>
+    <string name="settings_about">LeoSync %1$s – Open Source (MIT)</string>
+    <string name="settings_diag_copied">Diagnosedaten in die Zwischenablage kopiert</string>
+    <string name="settings_err_days">Bitte eine Zahl von 1 bis 365 eingeben.</string>
+    <string name="settings_err_minutes">Bitte eine Zahl von 0 bis 1440 eingeben.</string>
+    <string name="settings_err_country">Bitte einen gültigen Ländercode aus zwei Buchstaben eingeben (z. B. CH).</string>
+</resources>

@@ -1,0 +1,73 @@
+package com.sync2pc.app.mirror
+
+// White-/Blacklist mit einfachen Mustern (Gross-/Kleinschreibung egal):
+//   *.pdf        alle PDFs (in jedem Ordner)
+//   Thumbs.db    genau dieser Dateiname
+//   Temp/**      alles im Ordner "Temp" (relativ zum Sync-Ordner)
+//   ?            genau ein Zeichen
+// Muster ohne "/" gelten für den Dateinamen, Muster mit "/" für den relativen Pfad.
+// Whitelist leer = alles erlaubt. Blacklist hat Vorrang.
+// (Bewusst Zeilenkommentare: "/**" in einem Blockkommentar öffnet in Kotlin einen verschachtelten Kommentar.)
+class FileFilter(include: String, exclude: String) {
+    private val inc = parse(include)
+    private val exc = parse(exclude) + ALWAYS_EXCLUDED
+
+    fun accepts(relPath: String): Boolean {
+        val p = relPath.lowercase()
+        val name = p.substringAfterLast('/')
+        fun matches(rules: List<Pair<Boolean, Regex>>) =
+            rules.any { (onPath, rx) -> rx.matches(if (onPath) p else name) }
+        if (matches(exc)) return false
+        return inc.isEmpty() || matches(inc)
+    }
+
+    val isEmpty: Boolean get() = inc.isEmpty() && exc.size == ALWAYS_EXCLUDED.size
+
+    companion object {
+        /** Temp-Dateien und Papierkorb werden nie synchronisiert */
+        // alle Papierkorb-Namen ("@LeoSync-Bin" aktuell, ".LeoSync-Bin" 0.8.0 bis 0.16.x, ".LeoSync-Papierkorb", ".Sync2PC-Papierkorb"; Muster
+        // gehören zu [MirrorEngine.TRASH_DIRS]) und alte Version beim Ersetzen (".s2pold", 0.4.1)
+        private val ALWAYS_EXCLUDED = parse("*.s2ptmp\n*.s2pold\n.LeoSync-Bin/**\n.LeoSync-Papierkorb/**\n.Sync2PC-Papierkorb/**\n@LeoSync-Bin/**")
+
+        fun split(s: String): List<String> =
+            s.split('\n', ',', ';').map { it.trim() }.filter { it.isNotEmpty() }
+
+        /**
+         * Erstes Muster mit nicht geschlossener Klammer ("[abc", "x]", "{a"), sonst null (SYNC-20261110-115 P9). Klammern selbst
+         * werden wörtlich verglichen (Muster kennen nur * und ?); gepaarte wie "foto[1].jpg" bleiben gültig.
+         */
+        fun unbalancedPattern(s: String): String? = split(s).firstOrNull { pat ->
+            listOf('[' to ']', '{' to '}').any { (open, close) ->
+                var depth = 0
+                var bad = false
+                for (c in pat) {
+                    if (c == open) depth++
+                    else if (c == close) { depth--; if (depth < 0) bad = true }
+                }
+                bad || depth != 0
+            }
+        }
+
+        private fun parse(s: String): List<Pair<Boolean, Regex>> =
+            split(s).map { pat ->
+                val p = pat.lowercase().replace('\\', '/').trimStart('/')
+                (p.contains('/')) to globToRegex(p)
+            }
+
+        fun globToRegex(glob: String): Regex {
+            val sb = StringBuilder("^")
+            var i = 0
+            while (i < glob.length) {
+                val c = glob[i]
+                when {
+                    c == '*' && i + 1 < glob.length && glob[i + 1] == '*' -> { sb.append(".*"); i++ }
+                    c == '*' -> sb.append("[^/]*")
+                    c == '?' -> sb.append("[^/]")
+                    else -> sb.append(Regex.escape(c.toString()))
+                }
+                i++
+            }
+            return Regex(sb.append("$").toString())
+        }
+    }
+}
