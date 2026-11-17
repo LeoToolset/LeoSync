@@ -45,10 +45,6 @@
     <string name="profile_domain">Domain / PC name (optional)</string>
     <string name="profile_domain_hint">Usually leave empty for a local Windows account. Microsoft account: use the e-mail address as user.</string>
     <string name="profile_test">Test connection</string>
-    <string name="profile_wifi">Wi-Fi (automatic sync)</string>
-    <string name="profile_wifi_hint">When the phone is connected to one of these Wi-Fi networks, LeoSync syncs automatically in the background. At least one Wi-Fi name is required for “Wi-Fi name only” and “Both”. To sync without a Wi-Fi name (e.g. via VPN), choose “PC ID only”.</string>
-    <string name="profile_wifi_add_current">Add current Wi-Fi “%1$s”</string>
-    <string name="profile_wifi_name">Wi-Fi name</string>
     <string name="profile_add">Add</string>
     <string name="profile_direction">Direction and changes</string>
     <string name="profile_direction_hint">In which direction should it sync?</string>
@@ -60,8 +56,6 @@
     <string name="profile_trash_days_hint">Older entries in “%1$s” are permanently deleted on phone and PC. 0 = never. Default: 30</string>
     <string name="profile_conflict_question">If a file was changed on both sides:</string>
     <string name="profile_conflict_newer_hint">The older version is moved to the trash, not deleted.</string>
-    <string name="profile_poll">Check for changes every … minutes</string>
-    <string name="profile_poll_hint">Only while the phone is on the target Wi-Fi (at least 15). Additionally right when connecting to the Wi-Fi.</string>
     <string name="profile_after_upload">After a successful transfer</string>
     <string name="profile_after_upload_hint">What happens to the photos on the phone once they are safely on the PC?</string>
     <string name="profile_delete_hint">Files are only removed if the upload was verified (size + checksum). Android asks for confirmation once per run.</string>
@@ -149,19 +143,15 @@
     <string name="wizard_intro_guard">Optional: from when LeoSync asks first when there are many deletions. The default suits most people.</string>
     <!-- PC recognition (0.13.0) -->
     <string name="profile_pc_check">PC ID</string>
-    <string name="profile_pc_check_hint">How LeoSync recognises your PC before it sends the sign-in data.</string>
-    <string name="profile_pc_opt_wifi">Wi-Fi name only</string>
-    <string name="profile_pc_opt_wifi_sub">Weaker: a foreign network with the same Wi-Fi name and the same address could receive the sign-in data.</string>
-    <string name="profile_pc_opt_guid">PC ID only</string>
-    <string name="profile_pc_opt_guid_sub">Works in any Wi-Fi. The PC must be recognised before the sign-in data is sent.</string>
-    <string name="profile_pc_opt_both">Both</string>
-    <string name="profile_pc_opt_both_sub">Wi-Fi name and PC ID must both match. Safest.</string>
+    <string name="profile_known_nets">Known networks: %1$d</string>
+    <string name="profile_known_nets_forget">Forget</string>
+    <string name="profile_known_nets_hint">LeoSync remembers the Wi-Fi networks where your PC was recognised and tries harder to reach it there. After “Forget” it learns them again. The network never decides whether sign-in data is sent; only the PC ID does.</string>
+    <string name="profile_pc_check_hint">LeoSync recognises your PC by its ID before it sends the sign-in data. This works in any Wi-Fi and over VPN.</string>
     <string name="profile_pc_status_known">PC recognised</string>
     <string name="profile_pc_status_unknown">PC not recognised yet. Tap “Test connection” once.</string>
-    <string name="profile_pc_status_new">The PC is recognised when you save, as soon as it is reachable (with “Both” in the listed Wi-Fi).</string>
+    <string name="profile_pc_status_new">The PC is recognised when you save, as soon as it is reachable.</string>
     <string name="profile_pc_learning">Recognising the PC …</string>
     <string name="profile_pc_status_changed">A different PC answered. Tap “Test connection” to check it.</string>
-    <string name="profile_pc_status_wifi">Not used with “Wi-Fi name only”.</string>
     <string name="profile_pc_switch_hint">The PC ID is checked now: the connection is tested once.</string>
     <string name="profile_pc_trust_title">Trust a different PC?</string>
     <string name="profile_pc_trust_body">At %1$s a different PC answers than before. Only continue if you reinstalled the PC or replaced it. Your sign-in data is only sent if you trust the new PC.</string>

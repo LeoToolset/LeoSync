@@ -1,7 +1,7 @@
 # Privacy Policy – LeoSync
 
-**Last updated:** November 9, 2026  
-**Version:** 1.1
+**Last updated:** November 15, 2026  
+**Version:** 1.2
 
 This privacy policy explains what data is processed by the LeoSync Android application and how this data is handled.
 
@@ -11,7 +11,7 @@ LeoSync is an application developed under the Leo brand. Its purpose is to synch
 
 The party responsible for data processing is:
 
-- **Developer:** [Full legal name]
+- **Developer:** Raffael Baldinger
 - **Country:** Switzerland
 - **Contact:** leotools@protonmail.com
 
@@ -33,7 +33,7 @@ LeoSync does not use:
 
 No usage statistics or personal data are automatically transmitted to the developer.
 
-The only internet connection apart from SMB synchronization is the check for app updates on GitHub (see Section 8).
+LeoSync is distributed and updated exclusively through Google Play; the app itself does not check for updates (see Section 8).
 
 ## 3. Photos and Videos
 
@@ -59,11 +59,13 @@ GPS coordinates are not automatically transmitted to the developer.
 
 When original photos are transferred, their original EXIF metadata may remain part of the transferred files.
 
-### 4.1 Wi-Fi Name and Location Permission
+### 4.1 No Location Permission, Recognition of the PC
 
-So that automatic synchronization only starts in the Wi-Fi networks defined by the user, LeoSync reads the name (SSID) of the currently connected Wi-Fi network. Android only provides this name with the location permission. For automatic background starts, the permission "Allow all the time" is required, and the device's location service must be switched on. The app also requires access to media location (the permission for GPS data in photos, see Section 4).
+LeoSync does not query the device's location and does not require a location permission for this. The name of the Wi-Fi network (SSID) is not read. LeoSync recognizes the PC by its identifier (SMB server identifier), which is checked before the user name and password are sent.
 
-The Wi-Fi name is evaluated only locally on the device and is not transmitted to the developer or third parties. LeoSync does not create location histories and does not use the device location for any other purpose. The permission can be revoked at any time in the Android settings; automatic synchronization based on the Wi-Fi name is then not possible, while manual synchronization remains available.
+To save battery on unknown networks, the app stores locally on the device a technical fingerprint of the networks in which the PC was reliably recognized (formed from network details such as the router address, address range and search domain). This fingerprint does not leave the device, contains neither location nor Wi-Fi names, and can be deleted in the profile settings with "Forget".
+
+The permission "Location in photos" (access to GPS data in photos, see Section 4) is requested by the app only when the user chooses country folders for a photo profile, and only after an explanation. The capture location is evaluated exclusively locally on the device, not stored and not transmitted. The permission can be revoked at any time in the Android settings; country folders are then not available.
 
 ## 5. SMB Connections and Credentials
 
@@ -170,13 +172,13 @@ LeoSync does not use external analytics, advertising, tracking or cloud SDKs.
 
 No user data is automatically shared with advertising networks or analytics providers.
 
-### 8.1 Update Check via GitHub
+### 8.1 Distribution and Updates via Google Play
 
-The version of the app distributed via GitHub regularly checks (daily, on Wi-Fi) and when the update page is opened whether a newer version has been published on GitHub (api.github.com, LeoSync's public repository). A request is sent to GitHub; for technical reasons GitHub receives the device's IP address and the identifier "LeoSync" with the installed app version (User-Agent). No other user data, profiles, files or credentials are transmitted. If a newer version exists, the app downloads the installation file from GitHub only after the user taps, and installs it via the Android package installer. GitHub's privacy policy applies.
+LeoSync is distributed and updated exclusively through Google Play. The app contains no update check of its own and makes no connection to GitHub or any other server for this purpose. Google's privacy policy applies to obtaining and updating the app through Google Play. Earlier versions distributed via GitHub are no longer maintained.
 
 ### 8.2 Help and Product Page
 
-The menu item "Help & product page" opens the LeoSync product page (apop85.github.io/leosync) in the user's browser. No data from the app is passed on.
+The menu item "Help & product page" opens the LeoSync product page (leotoolset.github.io/leosync) in the user's browser. No data from the app is passed on.
 
 ### 8.3 Other Data Flows
 
@@ -213,7 +215,7 @@ Files are stored on the Android device and at the SMB storage locations configur
 
 **Backup (export/import):** LeoSync can export profiles, settings and, optionally, the synchronization status to a file. It contains, among other things, server addresses, share paths and user names. SMB passwords are included only on request and are then encrypted with an export password chosen by the user (AES-256); without an export password the file contains no passwords. The file is saved or shared wherever the user decides and should be protected accordingly. The app itself does not create automatic Android backups (allowBackup).
 
-**Recycle bin and version protection:** When files in folder profiles are replaced or deleted, they are, depending on the settings, moved to a hidden recycle-bin folder (`.LeoSync-Bin`) on the mobile device or the share, and permanently deleted automatically after the configured period or manually. These folders exist only on the user's own storage locations.
+**Recycle bin and version protection:** When files in folder profiles are replaced or deleted, they are, depending on the settings, moved to a recycle-bin folder (`@LeoSync-Bin`) on the mobile device or the share, and permanently deleted automatically after the configured period or manually. These folders exist only on the user's own storage locations.
 
 Local application data and settings can be deleted through Android application management settings. When the application is uninstalled, its associated local application data is removed according to Android system behavior.
 

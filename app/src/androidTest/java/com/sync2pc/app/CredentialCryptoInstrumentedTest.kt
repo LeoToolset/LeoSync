@@ -80,4 +80,29 @@ class CredentialCryptoInstrumentedTest {
         bytes[bytes.size - 1] = (bytes[bytes.size - 1].toInt() xor 0x01).toByte()
         assertEquals("", CredentialCrypto.decrypt(Base64.encodeToString(bytes, Base64.NO_WRAP)))
     }
+
+    /** SYNC-20261114-334 (1): decryptResult unterscheidet «nicht lesbar» und erzeugt nie einen neuen Schlüssel */
+    @Test
+    fun decryptResultReportsUnreadableAndNeverCreatesAKey() {
+        val testAlias = "sync2pc_credentials_test_" + System.nanoTime()
+        val original = CredentialCrypto.alias
+        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        try {
+            CredentialCrypto.alias = testAlias
+            val enc = CredentialCrypto.encrypt("geheim")
+            assertEquals(com.sync2pc.app.data.DecryptResult.Ok("geheim"), CredentialCrypto.decryptResult(enc))
+            assertEquals(com.sync2pc.app.data.DecryptResult.Ok(""), CredentialCrypto.decryptResult(""))
+            // verfälschter Chiffretext (Tag stimmt nicht) und zu kurzer Wert
+            assertEquals(com.sync2pc.app.data.DecryptResult.Unreadable, CredentialCrypto.decryptResult(Base64.encodeToString(ByteArray(40), Base64.NO_WRAP)))
+            assertEquals(com.sync2pc.app.data.DecryptResult.Unreadable, CredentialCrypto.decryptResult(Base64.encodeToString(ByteArray(5), Base64.NO_WRAP)))
+            assertEquals(com.sync2pc.app.data.DecryptResult.Unreadable, CredentialCrypto.decryptResult("kein base64 !!"))
+            // Schlüssel gelöscht: nicht lesbar, und es entsteht KEIN neuer Schlüssel
+            ks.deleteEntry(testAlias)
+            assertEquals(com.sync2pc.app.data.DecryptResult.Unreadable, CredentialCrypto.decryptResult(enc))
+            assertTrue(!ks.containsAlias(testAlias))
+        } finally {
+            CredentialCrypto.alias = original
+            try { ks.deleteEntry(testAlias) } catch (ignored: Exception) {}
+        }
+    }
 }

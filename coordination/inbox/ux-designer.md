@@ -4,4 +4,4 @@ Nur Verweise auf aktive, an UX adressierte Aufträge (Details in der Task-Datei)
 
 | ID | Von | Kurzbeschreibung | Prio | Status | Datei |
 |---|---|---|---|---|---|
-| SYNC-20261113-318 | Benutzer | Website: neue App-Screenshots (Profilkarten-Symbole, Papierkorb Öffnen, Pause) | MEDIUM | OPEN | ../tasks/OPEN/SYNC-20261113-318.md |
+| SYNC-20261114-328 | UX-Specialist | Play-Store: Tablet- und Desktop-Screenshots im Emulator | LOW | OPEN | ../tasks/OPEN/SYNC-20261114-328.md |

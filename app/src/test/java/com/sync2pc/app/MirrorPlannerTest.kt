@@ -42,6 +42,11 @@ class MirrorPlannerTest {
         for (dir in SyncDirection.entries) assertEquals(Decision(PlanKind.DROP), decide(null, null, state(), dir))
     }
 
+    // SYNC-20261115-399: bisher synchronisiert, jetzt vom Filter ausgeschlossen (fehlt in beiden Listen): nur Stand entfernen, nie löschen
+    @Test fun excludedPathWithStateOnlyDropsEvenWhenDeletionsPropagate() {
+        for (dir in SyncDirection.entries) assertEquals(Decision(PlanKind.DROP), decide(null, null, state(), dir, propagate = true))
+    }
+
     @Test fun bothMissingWithoutStateDoesNothing() {
         for (dir in SyncDirection.entries) assertNull(decide(null, null, null, dir))
     }
@@ -191,5 +196,34 @@ class MirrorPlannerTest {
         // PC -> Handy: gelöscht werden darf nur auf dem Handy
         assertEquals(PlanKind.TRASH_LOCAL, kind(decide(local(), null, state(), DOWNLOAD, propagate = true)))
         assertEquals(PlanKind.DOWNLOAD, kind(decide(null, remote(), state(), DOWNLOAD, propagate = true)))
+    }
+
+    // ---- R-D1 (SYNC-20261114-337): Änderung schlägt Löschung, nur Richtung «beide» mit Löschungen übernehmen ----
+    @Test fun changeBeatsDeletionOnPcInBothMode() {
+        // Handy geändert, auf dem PC gelöscht -> wiederherstellen statt Papierkorb
+        val d = decide(local(20, 300), null, state(), BOTH, propagate = true)
+        assertEquals(Decision(PlanKind.UPLOAD, trashOther = false, overruledDeletion = true), d)
+        // nur die Zeit geändert zählt auch als Änderung
+        assertEquals(PlanKind.UPLOAD, kind(decide(local(10, 999), null, state(), BOTH, propagate = true)))
+    }
+
+    @Test fun changeBeatsDeletionOnPhoneInBothMode() {
+        val d = decide(null, remote(20, 300), state(), BOTH, propagate = true)
+        assertEquals(Decision(PlanKind.DOWNLOAD, trashOther = false, overruledDeletion = true), d)
+        assertEquals(PlanKind.DOWNLOAD, kind(decide(null, remote(10, 999), state(), BOTH, propagate = true)))
+    }
+
+    @Test fun unchangedFileStillFollowsTheDeletion() {
+        assertEquals(Decision(PlanKind.TRASH_LOCAL), decide(local(), null, state(), BOTH, propagate = true))
+        assertEquals(Decision(PlanKind.TRASH_REMOTE), decide(null, remote(), state(), BOTH, propagate = true))
+    }
+
+    @Test fun oneWayDirectionsAndNoPropagationAreUnchangedByTheNewRule() {
+        // Einweg: Änderung der Zielseite ist nicht vorgesehen, Papierkorb schützt
+        assertEquals(PlanKind.TRASH_LOCAL, kind(decide(local(20, 300), null, state(), DOWNLOAD, propagate = true)))
+        assertEquals(PlanKind.TRASH_REMOTE, kind(decide(null, remote(20, 300), state(), UPLOAD, propagate = true)))
+        // ohne «Löschungen übernehmen»: wie bisher
+        assertEquals(Decision(PlanKind.UPLOAD), decide(local(20, 300), null, state(), BOTH))
+        assertEquals(Decision(PlanKind.DOWNLOAD), decide(null, remote(20, 300), state(), BOTH))
     }
 }

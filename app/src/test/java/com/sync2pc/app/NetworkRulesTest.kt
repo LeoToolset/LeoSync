@@ -1,14 +1,19 @@
 package com.sync2pc.app
 
+import com.sync2pc.app.sync.KnownNets
 import com.sync2pc.app.sync.NetworkRules
-import com.sync2pc.app.sync.PcCheckMode
 import com.sync2pc.app.sync.SyncScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Netzwerk-Entscheidungen (DEC-126, 0.11.7): Schalter AUS/EIN × WLAN/Mobil/kein Netz × SSID */
+/**
+ * Netzwerk-Entscheidungen (DEC-126, 0.11.7): Schalter AUS/EIN × WLAN/Mobil/kein Netz; B7 Roaming; seit 0.19.0 (SYNC-20261115-351)
+ * ohne WLAN-Namen, dafür «Bekannte Netze» (Netz-Fingerabdruck steuert nur die Wartezeiten, nie das Senden der Zugangsdaten).
+ */
 class NetworkRulesTest {
 
     @Test fun onAllowedNetworkTable() {
@@ -33,15 +38,6 @@ class NetworkRulesTest {
         assertFalse(NetworkRules.offWifiSyncActive(isMobileOrVpn = false, switchOn = false))
     }
 
-    @Test fun mayContinueBySsidOrNetwork() {
-        val ssids = listOf("Heim", "Heim 5G")
-        assertTrue(NetworkRules.mayContinue("Heim", ssids, onAllowedNetwork = false)) // SSID passt, Netz egal
-        assertFalse(NetworkRules.mayContinue("Fremd", ssids, onAllowedNetwork = true)) // fremdes WLAN gewinnt immer
-        assertTrue(NetworkRules.mayContinue(null, ssids, onAllowedNetwork = true))     // Mobil mit Schalter / unlesbar im WLAN
-        assertFalse(NetworkRules.mayContinue(null, ssids, onAllowedNetwork = false))   // kein erlaubtes Netz
-        assertFalse(NetworkRules.mayContinue("Heim", emptyList(), onAllowedNetwork = true))
-    }
-
     @Test fun retryMinutes() {
         assertEquals(120L, NetworkRules.retryMinutes(offWifi = true, midRun = false))
         assertEquals(120L, NetworkRules.retryMinutes(offWifi = true, midRun = true)) // auch nach Abbruch mitten im Lauf
@@ -50,75 +46,109 @@ class NetworkRulesTest {
         assertEquals(30L, SyncScheduler.SHARE_RETRY_MINUTES)
     }
 
+    private val full = listOf(0L, 5_000L, 10_000L, 15_000L, 30_000L)
+
     @Test fun reachabilityWaits() {
         assertEquals(listOf(0L, 3_000L), NetworkRules.reachabilityWaits(manual = true, offWifi = false))
         assertEquals(listOf(0L, 3_000L), NetworkRules.reachabilityWaits(manual = true, offWifi = true)) // manuell unverändert
         assertEquals(listOf(0L, 5_000L), NetworkRules.reachabilityWaits(manual = false, offWifi = true))
-        assertEquals(listOf(0L, 5_000L, 10_000L, 15_000L, 30_000L), NetworkRules.reachabilityWaits(manual = false, offWifi = false))
+        assertEquals(full, NetworkRules.reachabilityWaits(manual = false, offWifi = false))
     }
 
-    // ---- PC-Erkennung je Modus (SYNC-20261109-047, Stufe 2) ----
-    private val ssids = listOf("Heim")
-
-    @Test fun needsWifiNameOnlyForWifiAndBoth() {
-        assertTrue(NetworkRules.needsWifiName(PcCheckMode.WIFI))
-        assertTrue(NetworkRules.needsWifiName(PcCheckMode.BOTH))
-        assertFalse(NetworkRules.needsWifiName(PcCheckMode.GUID))
+    // ---- Bekannte Netze: unbekanntes WLAN = ein Versuch, Sicherheitsnetz einmal je 24 h ----
+    @Test fun unknownWifiGetsOnlyOneAttemptUnlessSafetyNetIsDue() {
+        assertEquals("bekanntes Netz: volle Versuche", full, NetworkRules.reachabilityWaits(manual = false, offWifi = false, knownNet = true))
+        assertEquals("unbekanntes Netz: ein Versuch ohne Wartezeit", listOf(0L),
+            NetworkRules.reachabilityWaits(manual = false, offWifi = false, knownNet = false, fullAttemptsDue = false))
+        assertEquals("Sicherheitsnetz fällig: trotzdem volle Versuche", full,
+            NetworkRules.reachabilityWaits(manual = false, offWifi = false, knownNet = false, fullAttemptsDue = true))
     }
 
-    @Test fun eligibleWifiIsUnchanged() {
-        val m = PcCheckMode.WIFI
-        assertTrue(NetworkRules.eligible(m, "Heim", ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertFalse(NetworkRules.eligible(m, "Fremd", ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertFalse(NetworkRules.eligible(m, null, ssids, onAllowedNetwork = true, offWifiActive = false)) // unlesbar = nicht erfüllt
-        assertTrue(NetworkRules.eligible(m, null, ssids, onAllowedNetwork = true, offWifiActive = true))   // DEC-126
+    @Test fun manualStartAndMobileIgnoreTheFingerprint() {
+        assertEquals(listOf(0L, 3_000L), NetworkRules.reachabilityWaits(manual = true, offWifi = false, knownNet = false))
+        assertEquals(listOf(0L, 5_000L), NetworkRules.reachabilityWaits(manual = false, offWifi = true, knownNet = false))
     }
 
-    @Test fun eligibleBothNeedsNameButOffWifiPassesToGuidCheck() {
-        val m = PcCheckMode.BOTH
-        assertTrue(NetworkRules.eligible(m, "Heim", ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertFalse(NetworkRules.eligible(m, "Fremd", ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertFalse(NetworkRules.eligible(m, null, ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertTrue(NetworkRules.eligible(m, null, ssids, onAllowedNetwork = true, offWifiActive = true)) // Kennung entscheidet danach
+    @Test fun safetyNetDueOnceEvery24Hours() {
+        val day = NetworkRules.FULL_ATTEMPTS_INTERVAL_MS
+        assertEquals(24 * 3600_000L, day)
+        assertTrue("noch nie volle Versuche", NetworkRules.fullAttemptsDue(now = 1_000L, lastFullAt = 0L))
+        assertFalse(NetworkRules.fullAttemptsDue(now = 10 * 3600_000L, lastFullAt = 1_000L))
+        assertFalse(NetworkRules.fullAttemptsDue(now = day + 999L, lastFullAt = 1_000L))
+        assertTrue(NetworkRules.fullAttemptsDue(now = day + 1_000L, lastFullAt = 1_000L))
     }
 
-    @Test fun eligibleGuidAnyAllowedNetwork() {
-        val m = PcCheckMode.GUID
-        assertTrue(NetworkRules.eligible(m, "Fremd", ssids, onAllowedNetwork = true, offWifiActive = false))
-        assertTrue(NetworkRules.eligible(m, null, emptyList(), onAllowedNetwork = true, offWifiActive = false))
-        assertFalse(NetworkRules.eligible(m, null, emptyList(), onAllowedNetwork = false, offWifiActive = false))
-        assertTrue(NetworkRules.eligible(m, null, emptyList(), onAllowedNetwork = true, offWifiActive = true))
+    // ---- Netz-Fingerabdruck und Speicherregeln (KnownNets) ----
+    @Test fun fingerprintIsStableAndOrderIndependent() {
+        val a = KnownNets.fingerprint(listOf("192.168.1.1", "192.168.1.2"), "192.168.1.0/24", "fritz.box")
+        val b = KnownNets.fingerprint(listOf("192.168.1.2", "192.168.1.1", "192.168.1.1"), "192.168.1.0/24", "FRITZ.BOX ")
+        assertEquals(a, b)
     }
 
-    @Test fun mayContinueByMode() {
-        assertEquals(NetworkRules.mayContinue("Heim", ssids, false), NetworkRules.mayContinue(PcCheckMode.WIFI, "Heim", ssids, false))
-        assertFalse(NetworkRules.mayContinue(PcCheckMode.BOTH, "Fremd", ssids, true))
-        assertTrue(NetworkRules.mayContinue(PcCheckMode.GUID, "Fremd", ssids, true))
-        assertTrue(NetworkRules.mayContinue(PcCheckMode.GUID, null, emptyList(), true))
-        assertFalse(NetworkRules.mayContinue(PcCheckMode.GUID, null, emptyList(), false))
+    @Test fun differentNetworksHaveDifferentFingerprints() {
+        val home = KnownNets.fingerprint(listOf("192.168.1.1"), "192.168.1.0/24", "fritz.box")
+        assertNotEquals(home, KnownNets.fingerprint(listOf("192.168.0.1"), "192.168.0.0/24", "fritz.box"))
+        assertNotEquals("anderes Gateway", home, KnownNets.fingerprint(listOf("192.168.1.254"), "192.168.1.0/24", "fritz.box"))
+        assertNotEquals("andere Suchdomäne", home, KnownNets.fingerprint(listOf("192.168.1.1"), "192.168.1.0/24", "lan"))
     }
 
-    @Test fun wifiTriggerMatches() {
-        // Auslöser (unlesbar zählt)
-        assertTrue(NetworkRules.wifiTriggerMatches(PcCheckMode.WIFI, null, ssids, unreadableMatches = true))
-        assertTrue(NetworkRules.wifiTriggerMatches(PcCheckMode.BOTH, "Heim", ssids, unreadableMatches = true))
-        assertFalse(NetworkRules.wifiTriggerMatches(PcCheckMode.WIFI, "Fremd", ssids, unreadableMatches = true))
-        assertTrue(NetworkRules.wifiTriggerMatches(PcCheckMode.GUID, "Fremd", ssids, unreadableMatches = true))
-        // Fortsetzen (unlesbar wartet weiter)
-        assertFalse(NetworkRules.wifiTriggerMatches(PcCheckMode.BOTH, null, ssids, unreadableMatches = false))
-        assertTrue(NetworkRules.wifiTriggerMatches(PcCheckMode.GUID, null, emptyList(), unreadableMatches = false))
+    @Test fun nothingReadableMeansNoFingerprint() {
+        assertNull(KnownNets.fingerprint(emptyList(), null, "fritz.box"))
+        assertNull(KnownNets.fingerprint(listOf(" "), "", null))
+        assertTrue("Präfix allein genügt", KnownNets.fingerprint(emptyList(), "10.0.0.0/8", null) != null)
     }
 
-    /** V3 (-058): Netzbedingung fürs erste Kennenlernen */
-    @Test fun learnNetOk() {
-        // BOTH: Name lesbar und in der Liste
-        assertTrue(NetworkRules.learnNetOk(PcCheckMode.BOTH, "Heim", ssids))
-        assertFalse("fremdes WLAN", NetworkRules.learnNetOk(PcCheckMode.BOTH, "Fremd", ssids))
-        assertFalse("Name unlesbar", NetworkRules.learnNetOk(PcCheckMode.BOTH, null, ssids))
-        assertFalse("leere Liste", NetworkRules.learnNetOk(PcCheckMode.BOTH, "Heim", emptyList()))
-        // GUID: immer erfüllt (bewusste Einrichtung im Editor), WIFI nicht relevant
-        assertTrue(NetworkRules.learnNetOk(PcCheckMode.GUID, null, emptyList()))
-        assertTrue(NetworkRules.learnNetOk(PcCheckMode.GUID, "Fremd", ssids))
-        assertTrue(NetworkRules.learnNetOk(PcCheckMode.WIFI, null, emptyList()))
+    @Test fun ipv4NetworkIsMaskedToThePrefix() {
+        assertEquals("192.168.1.0/24", KnownNets.ipv4Network(byteArrayOf(192.toByte(), 168.toByte(), 1, 57), 24))
+        assertEquals("10.0.0.0/8", KnownNets.ipv4Network(byteArrayOf(10, 4, 5, 6), 8))
+        assertEquals("192.168.1.32/27", KnownNets.ipv4Network(byteArrayOf(192.toByte(), 168.toByte(), 1, 57), 27))
+        assertEquals("0.0.0.0/0", KnownNets.ipv4Network(byteArrayOf(1, 2, 3, 4), 0))
+        assertEquals("1.2.3.4/32", KnownNets.ipv4Network(byteArrayOf(1, 2, 3, 4), 32))
+        assertNull("IPv6-Adresse", KnownNets.ipv4Network(ByteArray(16), 64))
+        assertNull(KnownNets.ipv4Network(byteArrayOf(1, 2, 3, 4), 33))
+    }
+
+    @Test fun learnedKeepsAtMostFiveAndDropsTheOldest() {
+        var list = emptyList<String>()
+        for (i in 1..7) list = KnownNets.learned(list, "n$i")
+        assertEquals(listOf("n3", "n4", "n5", "n6", "n7"), list)
+        // ein bekanntes Netz rückt ans Ende und wird nie doppelt gespeichert
+        list = KnownNets.learned(list, "n3")
+        assertEquals(listOf("n4", "n5", "n6", "n7", "n3"), list)
+        assertEquals(KnownNets.MAX, list.size)
+    }
+
+    @Test fun learnDecision() {
+        assertEquals("kein Fingerabdruck: nichts tun", KnownNets.Learn.NONE, KnownNets.learnDecision(listOf("a"), null))
+        assertEquals("bekannt: nichts tun", KnownNets.Learn.NONE, KnownNets.learnDecision(listOf("a", "b"), "b"))
+        assertEquals("erstes Netz: still", KnownNets.Learn.SILENT_FIRST, KnownNets.learnDecision(emptyList(), "a"))
+        assertEquals("weiteres Netz: mit Verlaufseintrag", KnownNets.Learn.CHANGED, KnownNets.learnDecision(listOf("a"), "b"))
+    }
+
+    @Test fun isKnownNeverTrueWithoutFingerprint() {
+        assertFalse(KnownNets.isKnown(listOf("a"), null))
+        assertTrue(KnownNets.isKnown(listOf("a"), "a"))
+        assertFalse(KnownNets.isKnown(emptyList(), "a"))
+    }
+
+    // ---- B7 (SYNC-20261114-338): kein automatischer Lauf über Mobilfunk im Roaming ----
+    @Test fun roamingBlocksMobileButNeverWifi() {
+        assertFalse(NetworkRules.onAllowedNetwork(isWifi = false, isMobileOrVpn = true, switchOn = true, roaming = true))
+        assertTrue("ohne Roaming wie bisher", NetworkRules.onAllowedNetwork(isWifi = false, isMobileOrVpn = true, switchOn = true, roaming = false))
+        assertTrue("WLAN bleibt unverändert", NetworkRules.onAllowedNetwork(isWifi = true, isMobileOrVpn = false, switchOn = true, roaming = true))
+        assertTrue("WLAN mit Roaming-Flag eines anderen Netzes", NetworkRules.onAllowedNetwork(isWifi = true, isMobileOrVpn = false, switchOn = false, roaming = true))
+    }
+
+    @Test fun roamingDisablesOffWifiSyncAndRetries() {
+        assertFalse(NetworkRules.offWifiSyncActive(isMobileOrVpn = true, switchOn = true, roaming = true))
+        assertTrue(NetworkRules.offWifiSyncActive(isMobileOrVpn = true, switchOn = true, roaming = false))
+        assertFalse(NetworkRules.offWifiSyncActive(isMobileOrVpn = false, switchOn = true, roaming = false))
+    }
+
+    @Test fun roamingNoteOnlyWhenTheSwitchWouldOtherwiseAllowIt() {
+        assertTrue(NetworkRules.skippedForRoaming(isMobileOrVpn = true, switchOn = true, roaming = true))
+        assertFalse("Schalter aus: kein Roaming-Hinweis", NetworkRules.skippedForRoaming(isMobileOrVpn = true, switchOn = false, roaming = true))
+        assertFalse(NetworkRules.skippedForRoaming(isMobileOrVpn = true, switchOn = true, roaming = false))
+        assertFalse(NetworkRules.skippedForRoaming(isMobileOrVpn = false, switchOn = true, roaming = true))
     }
 }

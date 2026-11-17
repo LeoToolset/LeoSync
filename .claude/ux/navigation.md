@@ -11,6 +11,7 @@ Wegbeschreibungen zu Zielfenstern der App für **blinde Navigation** per adb: We
 6. Wer gleichzeitig mit einer anderen Rolle arbeitet: vor dem Eintragen den Abschnitt neu lesen und nur den eigenen Schritt ändern.
 7. **Systemdialoge und Ordnerauswahlen** (Dateiauswahl, «Ordner wählen», Speichern-Dialog) nur bis zum Einstieg dokumentieren (wie man sie öffnet, woran man sie erkennt), nie deren Inhalt, Ordner oder Dateien.
 8. **Scrollen:** «Wischer» = `swipe 30 1900 30 600 300` (am linken Rand, damit keine Schaltfläche getroffen wird); auf der Startseite «Ende» = 2× `swipe 540 1900 540 400 300`. Nach einem Fling schwanken Positionen um bis zu 200 px: bei Werten mit «ca.» die Karte kurz per uiautomator bestätigen.
+9. **Ganz nach unten (Langwischer, 0.20.14, Medium_Phone_API_37.0, 1080x2400):** `swipe 30 2100 30 250 150` (Start bei y ≤ 2100, sonst trifft der Wischer die untere Leiste «Abbrechen/Speichern» und scrollt nicht; 150 ms gibt Schwung). Profil-Editor: 2× statt bisher 4 bis 8 kurze Wischer, Startseite: 2×, Einstellungsseiten meist 1×. Nie blind eine feste Zahl wischen, sondern nach jedem Wischer 1 s warten und abbrechen, sobald der uiautomator-Dump unverändert ist (Seitenende). Zu einem Element: Abstand zum Zielpunkt als Wischlänge (bis 1800 px) statt vieler kurzer Wischer. Umschalten von hell/dunkel (`cmd uimode night yes|no`) und Sprache (`cmd locale set-app-locales <Paket> --locales de|en`) behält Seite und Position, kein erneutes Öffnen und Navigieren nötig.
 
 ## Aufbau eines Abschnitts
 
@@ -27,7 +28,7 @@ Unbekannte Werte mit «?» kennzeichnen, nie raten. Ältere Abschnitte ohne Ger�
 
 ## Kopfzeile der Startseite (Pause, Statistik, Verlauf, Einstellungen)
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
-1. Start: Startseite (`am start -n com.sync2pc.app/.ui.MainActivity`); die vier Symbole liegen bei jeder Schriftgrösse auf y=171
+1. Start: Startseite (`am start -n ch.leo.sync.debug/com.sync2pc.app.ui.MainActivity`; Release `ch.leo.sync`; bis 0.18.x: `com.sync2pc.app`); die vier Symbole liegen bei jeder Schriftgrösse auf y=171
 2. Pause x=607 · Statistik x=739 · Verlauf x=871 · Einstellungen x=1003 (Schrift 1,0 · 1,5 · 2,0 identisch)
 3. Prüftexte: Pause «Wie lange pausieren?» · Statistik «Pro Jahr» · Verlauf «Übertragungen» · Einstellungen «Sprache & Sicherung»
 
@@ -46,7 +47,7 @@ Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 ## Verlauf (Protokoll)
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 1. Start: Startseite
-2. Symbol «Verlauf» (x=871 y=171, alle Schriftgrössen) antippen, oder per Intent `am start -n com.sync2pc.app/.ui.MainActivity --es open log` -> Verlauf (Prüftext: «Übertragungen»)
+2. Symbol «Verlauf» (x=871 y=171, alle Schriftgrössen) antippen, oder per Intent `am start -n ch.leo.sync.debug/com.sync2pc.app.ui.MainActivity --es open log` -> Verlauf (Prüftext: «Übertragungen»)
 3. Achtung: das Papierkorbsymbol rechts daneben (x=1003 y=171) öffnet «Gesamten Verlauf löschen?»
 
 ## Verlauf löschen (Dialog)
@@ -56,11 +57,17 @@ Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 3. «Abbrechen» – Schrift 1,0: x=436, y=1368 · 1,5: x=736, y=1660 · 2,0: x=705, y=1752
 4. «Verlauf löschen» (löscht wirklich) – 1,0: x=748, y=1368 · 1,5: ? · 2,0: x=626, y=1572
 
-## Updates
-Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
-1. Start: Startseite -> Zahnrad (x=1003 y=171) -> Einstellungsliste (Prüftext: «Sprache & Sicherung»)
-2. «Updates» antippen (Schrift 1,0: x=755, y=854 · 1,5: x=592, y=854 · 2,0: x=494, y=854) -> Updates (Prüftext: «Jetzt prüfen»)
-3. Alternativ per Intent: `am start -n com.sync2pc.app/.ui.MainActivity --es open update` (prüft beim Öffnen automatisch)
+## Einstellungen: Eintragsliste (seit 0.19.0 ohne «Updates»)
+Stand: 0.19.7 · Gerät: Medium_Phone_API_37.0 (1080x2400, Sprache EN, Schrift 1,0)
+1. Start: Startseite -> Zahnrad (x=1006 y=148) -> Liste (Prüftext «Notifications»): Notifications y=294 · Transfer y=420 · App permissions y=546 · Language & backup y=672 · Diagnostics y=798 · Help & product page y=924 (x≈800)
+2. «Transfer»: Schalter «Also sync over mobile data or VPN» x=928 y=1096 (nach 2× Rückwisch `swipe 30 700 30 1900 300` ganz oben); Schalterzustand per Pixel (78,94,139 = an)
+3. Der Weg «Updates» entfällt (Play-only-Build); `--es open update` hat keine Wirkung
+
+## Neues Profil: Ordnerwahl auf dem Handy (Systemdialog) und Ziel (EN, 1080x2400, Schrift 1,0)
+Stand: 0.19.7 · Gerät: Medium_Phone_API_37.0 (1080x2400)
+1. Startseite «Create first profile» (nach «Set up fresh») -> «Sync a folder» (x=244 y=806) -> «Next» (x=936 y=980) -> «Choose folder…» (x=273 y=770); Systemdialog «Can’t use this folder» = Speicherwurzel: «Download» (x=757 y=1152), Zielordner antippen, «USE THIS FOLDER» (x=540 y=2274), «ALLOW» (x=879 y=1336); Zeilenhöhen im Dialog wechseln, Ordnername per uiautomator suchen
+2. Schritt 3: Freigabepfad-Feld x=540 y=780 (Backslashes bei `input text`: `\\\\127.0.0.1\\QA\\Ordner`, Feld leeren mit `input keycombination KEYCODE_CTRL_LEFT KEYCODE_A` + DEL), Benutzer y=1106, Passwort y=1295, Tastatur mit Zurück schliessen (nie Zurück doppelt), «Test connection» x=278 y=1904; «Next» erst nach 1× Wischer sichtbar (x=936 y=2232)
+3. Schritt 4 «Both ways» x=313 y=1352, «Apply deletions»-Schalter x=928 y=1541 (Schritt 4 nach Wischer; Position per uiautomator bestätigen); Schritt 5 «Save» x=935 y=1274; Dialog «Profile saved»: «Later» x=540 y=1374
 
 ## Papierkorb
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
@@ -82,7 +89,7 @@ Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 
 ## Profil bearbeiten: Karten am Formularende (Filter, Schutzbremse, Wartung)
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
-1. Start: Profil bearbeiten (siehe oben), danach ans Formularende (8× Wischer; Wartung noch zugeklappt)
+1. Start: Profil bearbeiten (siehe oben), danach ans Formularende (2× Langwischer, Regel 9; früher 8× Wischer; Wartung noch zugeklappt)
 2. «Filter (optional)» (zugeklappt) – Schrift 1,0: x=507, y=772 · 1,5: x=507, y=340 · 2,0: nach 1 kurzem Rückwisch `swipe 30 700 30 1500 300`: x=507, y=1003
 3. «Schutzbremse (optional)» – 1,0: x=507, y=1025 · 1,5: x=507, y=710 · 2,0: x=507, y=308
 4. «Wartung» – 1,0: x=507, y=1729 · 1,5: x=507, y=1670 · 2,0: x=507, y=1513 (Prüftext nach Aufklappen: «Profil löschen»)
@@ -90,7 +97,7 @@ Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 
 ## Profil bearbeiten: Richtung und Änderungen
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
-1. Start: Profil bearbeiten, ans Formularende (8× Wischer), dann Rückwisch `swipe 30 700 30 1900 300` – 1,0: 1×, 1,5: 2×, 2,0: 3×
+1. Start: Profil bearbeiten, ans Formularende (2× Langwischer, Regel 9; früher 8× Wischer), dann Rückwisch `swipe 30 700 30 1900 300` – 1,0: 1×, 1,5: 2×, 2,0: 3×
 2. Kartentitel «Richtung und Änderungen» – Schrift 1,0: x=352, y=655 · 1,5: x=466, y=1318 · 2,0: x=540, y=1330 (Prüftext: «In welche Richtung wird abgeglichen?»)
 3. Radiobutton «Handy → PC» – 1,0: x=350, y=842 · 1,5: x=408, y=1542 · 2,0: x=452, y=1732
 4. Radiobutton «Beidseitig» – 1,0: x=322, y=1150 · 1,5: x=368, y=1850 · 2,0: ? (liegt unter dem sichtbaren Bereich, ein weiterer kurzer Wisch nötig)
@@ -104,7 +111,7 @@ Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
 
 ## Profil löschen (Dialog)
 Stand: 0.16.35 · Gerät: LeoSync_API29 (1080x2280)
-1. Start: Profil bearbeiten, ans Formularende (8× Wischer), «Wartung» antippen (Koordinaten siehe «Karten am Formularende»)
+1. Start: Profil bearbeiten, ans Formularende (2× Langwischer, Regel 9; früher 8× Wischer), «Wartung» antippen (Koordinaten siehe «Karten am Formularende»)
 2. Danach bei 1,0 und 1,5 1×, bei 2,0 3× Wischer; «Profil löschen» antippen – Schrift 1,0: x=359, y=1806 · 1,5: x=426, y=1806 · 2,0: x=466, y=1784 -> Dialog (Prüftext: «Profil löschen?»)
 3. «Abbrechen» – 1,0: x=556, y=1298 · 1,5: x=421, y=1440 · 2,0: x=705, y=1636
 4. «Löschen» (löscht wirklich; der Dialog nennt den Profilnamen nicht, vorher oben im Formular den Namen prüfen) – 1,0: x=808, y=1298 · 1,5: x=768, y=1440 · 2,0: x=743, y=1456
@@ -184,3 +191,23 @@ Stand: 0.17.0 · Gerät: Medium_Phone_API_37.0 (1080x2400, Paket com.sync2pc.app
 2. Felder: Mindestalter (1,0 ohne Wischen y≈1264–1432), darunter «Folder profiles: check for changes every … minutes» (1,0: y≈1590–1758); Hinweise je «More» (DE «Mehr dazu»)/«Less» (DE «Weniger») zum Aufklappen, Textlink 126 px hoch. 1,5: Wisch `swipe 30 1900 30 700 300`, «More» x≈143 y≈913 und y≈1530; 2,0: «More» x≈162 y≈1130 und y≈2071.
 3. Eingabefehler Prüfintervall (Wert < 15): «Enter a number from 15 to 1440.» unter dem Feld.
 4. Achtung: Das Mindestalter in der Debug-App steht auf 1, in der Release-App auf 5; Werte vor dem Test notieren.
+## Import und Export einer Sicherung (EN, Schrift 1,0)
+Stand: 0.20.2 · Gerät: Medium_Phone_API_37.0 (1080x2400)
+1. Start: Startseite -> Zahnrad (x=1006 y=148) -> «Language & backup» (x=800 y=672; Prüftext «Country folders») -> «Export…» x=540 y=1808 oder «Import…» x=540 y=1954 (Import öffnet sofort die Dateiwahl)
+2. Export-Dialog: Passwortfeld x=540 y=1200, nach Eingabe Tastatur mit Zurück schliessen, «Repeat export password» liegt ca. 11 px unter seiner Beschriftung, «Choose file…» x=760 (y per uiautomator), Dateiname im Systemdialog x=495 y=2274, «SAVE» x=928 y=2274; der Systemdialog startet im zuletzt benutzten Ordner (nicht in einem Sync-Ordner speichern)
+3. Import: Dateiwahl «Show roots» x=74 y=126 -> «Downloads» x=441 y=578 -> Datei; Exportpasswort Feld x=540 y=1260, «Next» x=822 y=1474; «Add» x=540 y=1594 (überspringt vorhandene Profile mit gleichem Ziel), «Replace» x=540 y=1720; Ergebnisdialog «Import finished», «OK» x=821 y=1428; zurück zur Startseite 2× Pfeil x=74 y=148
+
+## Sammelkachel «Messages» (Startseite, 0.20.x)
+Stand: 0.20.2 · Gerät: Medium_Phone_API_37.0 (1080x2400)
+1. Start: Startseite, Kachel unter der Statuskarte (Prüftext «Messages, 1 of n»); «Previous message» x=808 / «Next message» x=934 (y per uiautomator, Zeile mit «n of m»); Wischen waagrecht auf der Kachel blättert, D-Pad-Tasten per adb nicht
+2. Aktionen je Seite (Texte): «Enter password again», «Try again», «Open profile», «Decide», «Reduce protection: <Profil>», «+ n more» (zu-/aufklappen tippt auf die Zeile «Affects:»); Hinweis «A more important message arrived» mit «Show»
+3. Bei Schrift 2,0 liegt «Affects:» und die Knöpfe unterhalb des ersten Bildschirms: erst 1 bis 2× `swipe 30 1700 30 900 300`
+
+## Neues Fotoprofil (Assistent, 5 Schritte) und Profil bearbeiten: Ziel und Verschlüsselung (EN, Schrift 1,0)
+Stand: 0.20.14 · Gerät: Medium_Phone_API_37.0 (1080x2400)
+1. Start: Startseite, 2× Wischer `swipe 30 1900 30 700 300` -> «Add profile» (x=917 y≈1966 ohne Wischen) -> Typwahl (Prüftext «What do you want to sync?») -> «Back up photos & videos» x=300 y=452 -> Schritt 1 (Prüftext «Step 1 of 5: Profile name»); Namensfeld vorbelegt «Photos»: x=540 y=700, leeren mit `KEYCODE_MOVE_END` + mehrmals DEL (Ctrl+A markiert hier nicht zuverlässig); «Next» x=936 y=980
+2. Schritt 2 «Source»: «Grant» (Medienberechtigung) x=918 y=706 -> «Allow all» x=540 y=1421; «Add folder…» x=244 y=770 (nach der Berechtigung) -> Systemdialog: «DCIM» x=233 y=1151, «Camera» x=250 y=548, «USE THIS FOLDER» x=540 y=2274, «ALLOW» x=879 y=1336; «Next» x=936 y=1760
+3. Schritt 3 «Target»: «Copy credentials…» x=296 y=759 -> Konto antippen (z. B. erste Zeile x=380 y=1115); Pfadfeld x=540 y=930, Tastatur schliessen mit Zurück (1×, Wischen geht erst danach); «Next» nach 1× `swipe 600 2000 600 600 400` x=936 y=2232
+4. Schritt 4: «Encryption · …» (Kopfzeile, zuklappt) x=500 y=490; Radiobuttons nach dem Aufklappen: «Off» x=147, «If possible» x=147, «Required» x=147 (y per uiautomator: Zeilenmitte der Beschriftung, ca. 190 px Abstand); Tipp auf einen Radiobutton unterhalb der aktuellen Stufe öffnet «Less protection?» (Prüftext), «Reduce protection» x=540 y=1463; «Next» ganz unten x=936 y=2232
+5. Schritt 5 «Filter»: «Save» x=935 y=1274 -> bei überlappendem PC-Ordner «Profiles overlap» («Save anyway» x=760 y=1480) -> «Profile saved»: «Later» x=540 y=1555; Speichern im Editor: Haken x=1003 y=148; Pfadwechsel auf einen anderen Host zeigt «Use a different PC?» («Send sign-in data» x=723 y=1427)
+6. Profil bearbeiten (Karte antippen): «Profile active»-Schalter x=927 y=662; Zielfelder nach 1× `swipe 600 1900 600 500 400`: Pfad y≈248, Benutzer y≈620, Passwort y≈809 (Feldlage wechselt je nach Pfadlänge, per uiautomator bestätigen); Verschlüsselung weiter unten (nach 2× Wischer); «Maintenance» ganz unten (2× Langwischer, Regel 9) x=500 y=1980 -> «Delete profile» x=340 y=2012 -> «Delete» x=812 y=1374 (Prüftext «Delete profile?»)

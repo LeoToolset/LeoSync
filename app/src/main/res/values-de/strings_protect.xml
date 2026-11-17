@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Schutzkarten und Hinweise (SYNC-20261115-352) -->
+    <string name="prot_ok">OK</string>
+    <string name="prot_cancel">Abbrechen</string>
+    <string name="prot_understood">Verstanden</string>
+    <string name="prot_state_decision">Benutzerentscheidung erforderlich</string>
+    <plurals name="prot_more_cards">
+        <item quantity="one">%1$d weitere offene Entscheidung</item>
+        <item quantity="other">%1$d weitere offene Entscheidungen</item>
+    </plurals>
+
+    <!-- Verschlüsselung nicht verfügbar (Stufe «Erforderlich») -->
+    <string name="prot_enc_title">Verschlüsselung nicht verfügbar</string>
+    <string name="prot_enc_text">Für „%1$s“ ist Verschlüsselung vorgeschrieben, aber der PC oder das NAS bietet sie gerade nicht an. Es wird nichts übertragen. Mögliche Ursachen: Die Einstellung am NAS oder PC wurde geändert, oder jemand stört die Verbindung im Netz.</string>
+    <string name="prot_enc_test">Verbindung testen</string>
+    <string name="prot_enc_lower">Auf ‹Wenn möglich› stellen</string>
+    <string name="prot_enc_more">Mehr zur Verschlüsselung</string>
+    <string name="prot_enc_lower_title">Auf ‹Wenn möglich› stellen?</string>
+    <string name="prot_enc_lower_text">Das Profil überträgt danach auch ohne Verschlüsselung. Dafür gibt es keine automatische Umstellung mehr.</string>
+    <string name="prot_enc_lower_ok">Schutz verringern</string>
+    <string name="prot_enc_lowered">Verschlüsselung auf ‹Wenn möglich› gestellt</string>
+    <string name="prot_enc_card_line">Verschlüsselung abgelehnt</string>
+    <string name="prot_enc_profile_banner">Verschlüsselung nicht verfügbar: Der PC oder das NAS bietet sie gerade nicht an. Dieses Profil ist angehalten, es wird nichts übertragen.</string>
+
+    <!-- Automatische Umstellung auf «Erforderlich» -->
+    <string name="prot_auto_info">Verschlüsselung automatisch auf ‹Erforderlich› gestellt, weil dein PC verschlüsselt. Das schützt vor einer unbemerkten Herabstufung.</string>
+    <string name="prot_less_title">Weniger Schutz?</string>
+    <string name="prot_less_text">Die Übertragung dieses Profils ist danach nicht mehr sicher vor Mitlesen. Für dieses Profil stellt LeoSync nie mehr automatisch auf ‹Erforderlich› um.</string>
+    <string name="prot_less_ok">Schutz verringern</string>
+    <string name="prot_enc_auto_note">Bei ‹Wenn möglich› und ‹Aus› stellt LeoSync nie automatisch um.</string>
+
+    <!-- Anderes Laufwerk erkannt -->
+    <string name="prot_vol_no">Nicht synchronisieren</string>
+    <string name="prot_vol_stay">Das Profil bleibt angehalten, bis du weiter wählst.</string>
+    <string name="prot_vol_confirm_title">Mit diesem Laufwerk weiter?</string>
+    <string name="prot_vol_confirm_text">LeoSync merkt sich das neue Laufwerk und prüft danach den PC-Ordner per Stichprobe. Fahre nur fort, wenn du den Wechsel selbst veranlasst hast.</string>
+    <string name="prot_vol_confirm_ok">Mit diesem Laufwerk fortfahren</string>
+
+    <!-- Google Fotos (einmaliger Hinweis nach dem Fotos-Assistenten) -->
+    <string name="prot_gphotos_tip">Tipp: Gib Speicherplatz auf dem Handy erst nach einer Synchronisierung frei, am sichersten mit „Speicher freigeben“ in LeoSync. Es löscht nur Fotos, die nachweislich auf dem PC liegen. Google Fotos kann Originale löschen, bevor sie gesichert sind.</string>
+
+    <!-- Import-Checkliste, Papierkorb-Hinweise, Verschlüsselung erklären (SYNC-20261115-353) -->
+    <string name="chk_title_one">Nach dem Import: noch ein Schritt</string>
+    <string name="chk_title_many">Nach dem Import: noch %1$d Schritte</string>
+    <string name="chk_text">Deine Profile warten auf den ersten Start. Erledige die Schritte, dann läuft alles wie gewohnt.</string>
+    <string name="chk_row">%1$s · %2$s</string>
+    <string name="chk_step_folder">Ordner neu verknüpfen</string>
+    <string name="chk_step_test">Verbindung testen</string>
+    <string name="chk_step_sync">Ersten Abgleich starten</string>
+    <string name="chk_btn_folder">Ordner wählen</string>
+    <string name="chk_btn_test">Verbindung testen</string>
+    <string name="chk_btn_sync">Jetzt starten</string>
+    <string name="chk_collapse">Einklappen</string>
+    <string name="chk_expand">Aufklappen</string>
+    <string name="trash_note_migration">Dein Papierkorb zieht auf den neuen Ordner „@LeoSync-Bin“ um, sobald offene Wiederherstellungen erledigt sind. Bis dahin liegen Dateien noch im alten Ordner „.LeoSync-Bin“. Es geht nichts verloren.</string>
+    <string name="trash_note_exhausted">Eine Wiederherstellung ist mehrfach fehlgeschlagen und hält den Umzug auf. Versuche sie erneut oder verwirf sie.</string>
+    <string name="trash_note_pc_fallback">Dein PC oder NAS lehnt den Ordnernamen „@LeoSync-Bin“ ab. LeoSync verwendet deshalb dort weiterhin „.LeoSync-Bin“. Das ist normal, deine Dateien sind geschützt.</string>
+    <string name="enc_more">Mehr dazu</string>
+    <string name="enc_more_steps">Windows: PowerShell als Administrator öffnen. Eine Freigabe: Set-SmbShare -Name &lt;Freigabename&gt; -EncryptData $true. Alle Freigaben: Set-SmbServerConfiguration -EncryptData $true. Synology und QNAP: in den SMB-Einstellungen SMB 3 und die Verschlüsselung (Transportverschlüsselung) aktivieren. Ältere Geräte oder Linux-Samba ohne SMB 3 können das nicht; dann „Wenn möglich“ wählen.</string>
+    <!-- Einrichtungskarte, Aufnahmeort (SYNC-20261115-354) -->
+    <string name="setup_notif_help">Sonst erfährst du nicht, wenn eine Synchronisierung fertig ist oder deine Entscheidung braucht.</string>
+    <string name="setup_media_help">Nötig, damit LeoSync deine Fotos sichern kann.</string>
+    <string name="setup_battery_help">Damit LeoSync im Hintergrund zuverlässig läuft.</string>
+    <string name="battery_tip_title">Zuverlässige Hintergrund-Synchronisierung</string>
+    <string name="battery_tip_text">Ohne die Akku-Ausnahme kann Android automatische Synchronisierungen verzögern oder auslassen.</string>
+    <string name="battery_tip_reason">Eine Synchronisierung musste ohne Vordergrund laufen.</string>
+    <string name="battery_tip_later">Nicht jetzt</string>
+    <string name="perm_battery_skipped">(Zurückgestellt)</string>
+    <string name="setup_battery_btn">App-Einstellungen öffnen</string>
+    <string name="setup_battery_how">So geht es</string>
+    <string name="setup_battery_steps">1. „App-Einstellungen öffnen“ tippen (App-Info von LeoSync). 2. „Akku“ bzw. „Akkunutzung“ oder „Akkuverwaltung der App“ wählen. 3. „Uneingeschränkt“ wählen (je nach Handy „Hintergrundaktivität erlauben“ oder „Nicht optimieren“). 4. Zurück zu LeoSync. Die Bezeichnungen hängen vom Hersteller ab; manche Handys brauchen zusätzlich „Automatischer Start“.</string>
+    <string name="loc_title">Aufnahmeort der Fotos lesen?</string>
+    <string name="loc_text">Für Länderordner liest LeoSync den Aufnahmeort aus deinen Fotos (GPS-Daten im Foto), um den Ordner zu bestimmen. Der Ort wird nur auf deinem Handy ausgewertet; LeoSync speichert und sendet ihn nicht gesondert. Die Fotos selbst werden unverändert übertragen.</string>
+    <string name="loc_continue">Weiter</string>
+    <string name="loc_not_now">Nicht jetzt</string>
+    <string name="loc_missing">Aufnahmeort: Berechtigung fehlt</string>
+    <string name="loc_grant">Erteilen</string>
+    <!-- Umzug von der alten App, Über (SYNC-20261115-354) -->
+    <string name="move_title">Von der alten LeoSync-Version umziehen?</string>
+    <string name="move_text">Deine Profile ziehst du mit einer Sicherung um. Das geht in wenigen Schritten.</string>
+    <string name="move_start">Umzug starten</string>
+    <string name="move_fresh">Neu einrichten</string>
+    <string name="move_steps_title">Von der alten LeoSync-Version umziehen</string>
+    <string name="move_step1">1. Pausiere in der alten App alle Profile.</string>
+    <string name="move_step2">2. In der alten App: Einstellungen → Sicherung exportieren und die Datei speichern. Wähle dabei ein Export-Passwort: Dann werden die SMB-Passwörter verschlüsselt in der Datei gespeichert. Ohne Export-Passwort enthält die Datei keine Passwörter, du gibst sie nach dem Import neu ein.</string>
+    <string name="move_step3">3. Hier: „Sicherung importieren“.</string>
+    <string name="move_step4">4. Folge danach der Checkliste „Nach dem Import“ auf der Startseite.</string>
+    <string name="move_step5">5. Deinstalliere die alte App erst, wenn alles läuft.</string>
+    <string name="move_warn">Wichtig: Lass nicht beide Apps gleichzeitig dieselben Ordner synchronisieren. Pausiere in der alten App alle Profile, bevor du hier startest, und deinstalliere sie erst, wenn alles läuft.</string>
+    <string name="move_security">Sicherheit: Die Sicherungsdatei enthält deine Profileinstellungen und Serveradressen. SMB-Passwörter sind nur enthalten, wenn du ein Export-Passwort wählst, und dann verschlüsselt. Bewahre die Datei sicher auf und lösche sie nach dem Import.</string>
+    <string name="move_to_import">Zur Sicherung (Einstellungen)</string>
+    <string name="settings_updates_play">Updates kommen über Google Play.</string>
+    <!-- SMB-Antwortprüfung und Signierung (SYNC-20261115-365) -->
+    <string name="err_friendly_plaintext">Der PC hat unverschlüsselt geantwortet, obwohl die Verbindung verschlüsselt sein sollte. Die Verbindung wurde zur Sicherheit getrennt und es wurde nichts übertragen. Mögliche Ursachen: Jemand stört die Verbindung im Netz, oder der PC ist falsch eingestellt.</string>
+    <string name="err_friendly_signing">Der PC signiert seine Antworten nicht mehr, früher tat er es. Die Verbindung wurde zur Sicherheit getrennt und es wurde nichts übertragen. Mögliche Ursachen: Die Einstellung am NAS oder PC wurde geändert, oder jemand stört die Verbindung im Netz.</string>
+    <string name="sign_title">Signierung nicht mehr verfügbar</string>
+    <string name="sign_text">Der Server hat die Verbindung von „%1$s“ früher signiert, jetzt nicht mehr. Ohne Signierung kann die Verbindung unbemerkt verändert werden. Mögliche Ursachen: Die Einstellung am NAS oder PC wurde geändert, oder jemand stört die Verbindung im Netz. Bis du entscheidest, bleibt dieses Profil angehalten.</string>
+    <string name="sign_allow">Ohne Signierung erlauben</string>
+    <string name="sign_allow_title">Ohne Signierung erlauben?</string>
+    <string name="sign_allow_text">Die Verbindung dieses Profils kann danach unbemerkt verändert werden. Wähle das nur, wenn du die Einstellung am NAS oder PC selbst geändert hast. Beim nächsten Lauf merkt sich LeoSync den neuen Stand.</string>
+    <string name="sign_allow_ok">Erlauben</string>
+    <!-- Konflikt-Dialog: Auflösung und Dauer (SYNC-20261115-367) -->
+    <string name="conflict_res">%1$d × %2$d px</string>
+    <string name="conflict_res_video">%1$d × %2$d px · %3$s</string>
+    <string name="conflict_bigger">(grösser)</string>
+    <string name="conflict_res_hint">Messenger verkleinern Fotos oft. Die Datei mit der höheren Auflösung hat meist die bessere Qualität.</string>
+</resources>

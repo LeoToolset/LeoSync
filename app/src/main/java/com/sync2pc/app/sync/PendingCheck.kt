@@ -31,6 +31,23 @@ object PendingCheck {
     }
 
     /**
+     * Reifezeitpunkte der noch zu jungen, noch nicht übertragenen Dateien eines Fotoprofils (ältester und neuester), rein lokal ohne
+     * Netzwerk (SYNC-20261113-306). Gleicher Abgleich wie [readyFiles] und SyncEngine; Mindestalter 0: keine junge Datei.
+     */
+    suspend fun youngFiles(context: Context, p: Profile, minAgeMinutes: Int): FollowUpPlan.Young {
+        val dao = AppDatabase.get(context).dao()
+        val filter = FileFilter(p.includePatterns, p.excludePatterns)
+        val known = dao.syncedLite(p.id).associateBy { it.sourceKey }
+        val times = MediaScanner.scan(context, p.folders(), p.includeSubfolders, p.includeImages, p.includeVideos)
+            .filter { m ->
+                filter.accepts(m.relativePath + m.displayName) &&
+                    known[m.sourceKey].let { k -> k == null || k.size != m.size || k.dateModified != m.dateModifiedSec }
+            }
+            .map { it.dateAddedSec to it.dateModifiedSec }
+        return FollowUpPlan.youngOf(times, System.currentTimeMillis() / 1000, minAgeMinutes * 60L)
+    }
+
+    /**
      * Ordner-Profil (SYNC-20261111-199), rein lokal ohne Netzwerk: Dateien im Handy-Ordner, die neu oder seit dem letzten Abgleich
      * geändert sind (gleicher Vergleich wie MirrorPlanner: Grösse + Änderungszeit gegen `mirror_state`). Nur Richtungen, die vom
      * Handy hochladen; bei «PC → Handy» ist offen nicht ohne PC-Liste bekannt (0). Nicht lesbar -> 0.

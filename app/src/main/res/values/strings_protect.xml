@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Protection cards and hints (SYNC-20261115-352) -->
+    <string name="prot_ok">OK</string>
+    <string name="prot_cancel">Cancel</string>
+    <string name="prot_understood">Got it</string>
+    <string name="prot_state_decision">User decision required</string>
+    <plurals name="prot_more_cards">
+        <item quantity="one">%1$d more decision pending</item>
+        <item quantity="other">%1$d more decisions pending</item>
+    </plurals>
+
+    <!-- Encryption not available (level "Required") -->
+    <string name="prot_enc_title">Encryption not available</string>
+    <string name="prot_enc_text">Encryption is required for “%1$s”, but the PC or NAS does not offer it right now. Nothing is transferred. Possible causes: the setting on the NAS or PC was changed, or someone is interfering with the connection on the network.</string>
+    <string name="prot_enc_test">Test connection</string>
+    <string name="prot_enc_lower">Set to ‹If possible›</string>
+    <string name="prot_enc_more">More about encryption</string>
+    <string name="prot_enc_lower_title">Set to ‹If possible›?</string>
+    <string name="prot_enc_lower_text">Afterwards the profile also transfers without encryption. There is no automatic switch to ‹Required› any more.</string>
+    <string name="prot_enc_lower_ok">Reduce protection</string>
+    <string name="prot_enc_lowered">Encryption set to ‹If possible›</string>
+    <string name="prot_enc_card_line">Encryption refused</string>
+    <string name="prot_enc_profile_banner">Encryption not available: the PC or NAS does not offer it right now. This profile is paused and nothing is transferred.</string>
+
+    <!-- Automatic switch to "Required" -->
+    <string name="prot_auto_info">Encryption automatically set to ‹Required› because your PC encrypts. This protects against a silent downgrade.</string>
+    <string name="prot_less_title">Less protection?</string>
+    <string name="prot_less_text">Afterwards, transfers of this profile are no longer safe from eavesdropping. LeoSync will never again switch this profile to ‹Required› automatically.</string>
+    <string name="prot_less_ok">Reduce protection</string>
+    <string name="prot_enc_auto_note">With ‹If possible› and ‹Off›, LeoSync never switches automatically.</string>
+
+    <!-- Different drive detected -->
+    <string name="prot_vol_no">Do not sync</string>
+    <string name="prot_vol_stay">The profile stays paused until you choose to continue.</string>
+    <string name="prot_vol_confirm_title">Continue with this drive?</string>
+    <string name="prot_vol_confirm_text">LeoSync remembers the new drive and then checks the PC folder with a spot check. Only continue if you caused the change yourself.</string>
+    <string name="prot_vol_confirm_ok">Continue with this drive</string>
+
+    <!-- Google Photos (one-time tip after the photos wizard) -->
+    <string name="prot_gphotos_tip">Tip: Free up phone storage only after a sync, most safely with “Free up space” in LeoSync. It only deletes photos that are verified to be on the PC. Google Photos can delete originals before they are backed up.</string>
+
+    <!-- Import checklist, trash notes, explaining encryption (SYNC-20261115-353) -->
+    <string name="chk_title_one">After the import: one step left</string>
+    <string name="chk_title_many">After the import: %1$d steps left</string>
+    <string name="chk_text">Your profiles are waiting for their first run. Finish the steps and everything works as before.</string>
+    <string name="chk_row">%1$s · %2$s</string>
+    <string name="chk_step_folder">Reconnect folder</string>
+    <string name="chk_step_test">Test connection</string>
+    <string name="chk_step_sync">Start first sync</string>
+    <string name="chk_btn_folder">Choose folder</string>
+    <string name="chk_btn_test">Test connection</string>
+    <string name="chk_btn_sync">Start now</string>
+    <string name="chk_collapse">Collapse</string>
+    <string name="chk_expand">Expand</string>
+    <string name="trash_note_migration">Your trash is moving to the new folder “@LeoSync-Bin” as soon as pending restores are done. Until then, files stay in the old folder “.LeoSync-Bin”. Nothing is lost.</string>
+    <string name="trash_note_exhausted">A restore failed several times and is holding up the move. Try it again or discard it.</string>
+    <string name="trash_note_pc_fallback">Your PC or NAS rejects the folder name “@LeoSync-Bin”. LeoSync therefore keeps using “.LeoSync-Bin” there. This is normal; your files are protected.</string>
+    <string name="enc_more">More</string>
+    <string name="enc_more_steps">Windows: open PowerShell as administrator. One share: Set-SmbShare -Name &lt;ShareName&gt; -EncryptData $true. All shares: Set-SmbServerConfiguration -EncryptData $true. Synology and QNAP: turn on SMB 3 and encryption (transport encryption) in the SMB settings. Older devices or Linux Samba without SMB 3 cannot do this; then choose “If possible”.</string>
+    <!-- Setup card, capture location (SYNC-20261115-354) -->
+    <string name="setup_notif_help">Otherwise you will not know when a sync is done or needs your decision.</string>
+    <string name="setup_media_help">Needed so LeoSync can back up your photos.</string>
+    <string name="setup_battery_help">So LeoSync runs reliably in the background.</string>
+    <string name="battery_tip_title">Reliable background sync</string>
+    <string name="battery_tip_text">Without the battery exception, Android can delay or skip automatic syncs.</string>
+    <string name="battery_tip_reason">A sync had to run without a foreground notification.</string>
+    <string name="battery_tip_later">Not now</string>
+    <string name="perm_battery_skipped">(Skipped)</string>
+    <string name="setup_battery_btn">Open app settings</string>
+    <string name="setup_battery_how">How to</string>
+    <string name="setup_battery_steps">1. Tap “Open app settings” (App info of LeoSync). 2. Choose “Battery”, “Battery usage” or “App battery management”. 3. Choose “Unrestricted” (on some phones “Allow background activity” or “Not optimised”). 4. Return to LeoSync. The labels depend on the manufacturer; some phones also need “Auto launch”.</string>
+    <string name="loc_title">Read where your photos were taken?</string>
+    <string name="loc_text">For country folders, LeoSync reads the capture location from your photos (GPS data in the photo) to choose the folder. The location is evaluated only on your phone; LeoSync does not store or send it separately. The photos themselves are transferred unchanged.</string>
+    <string name="loc_continue">Continue</string>
+    <string name="loc_not_now">Not now</string>
+    <string name="loc_missing">Capture location: permission missing</string>
+    <string name="loc_grant">Grant</string>
+    <!-- Moving from the old app, About (SYNC-20261115-354) -->
+    <string name="move_title">Move from the old LeoSync version?</string>
+    <string name="move_text">You move your profiles with a backup. It takes a few steps.</string>
+    <string name="move_start">Start moving</string>
+    <string name="move_fresh">Set up fresh</string>
+    <string name="move_steps_title">Move from the old LeoSync version</string>
+    <string name="move_step1">1. Pause all profiles in the old app.</string>
+    <string name="move_step2">2. In the old app: Settings → export a backup and save the file. Choose an export password: then the SMB passwords are saved encrypted in the file. Without one, the file contains no passwords and you enter them again after the import.</string>
+    <string name="move_step3">3. Here: “Import backup”.</string>
+    <string name="move_step4">4. Then follow the “After the import” checklist on the home screen.</string>
+    <string name="move_step5">5. Uninstall the old app only when everything works.</string>
+    <string name="move_warn">Important: do not let both apps sync the same folders at the same time. Pause all profiles in the old app before you start here, and uninstall it only when everything works.</string>
+    <string name="move_security">Security: the backup file contains your profile settings and server addresses. SMB passwords are only included if you choose an export password, and then they are encrypted. Keep the file safe and delete it after the import.</string>
+    <string name="move_to_import">To backup (Settings)</string>
+    <string name="settings_updates_play">Updates are delivered through Google Play.</string>
+    <!-- SMB reply check and signing (SYNC-20261115-365) -->
+    <string name="err_friendly_plaintext">The PC replied unencrypted although the connection should be encrypted. The connection was closed for safety and nothing was transferred. Possible causes: someone is interfering with the connection on the network, or the PC is misconfigured.</string>
+    <string name="err_friendly_signing">The PC no longer signs its replies, although it used to. The connection was closed for safety and nothing was transferred. Possible causes: the setting on the NAS or PC was changed, or someone is interfering with the connection on the network.</string>
+    <string name="sign_title">Signing no longer available</string>
+    <string name="sign_text">The server used to sign the connection of “%1$s”, now it does not. Without signing, the connection can be altered unnoticed. Possible causes: the setting on the NAS or PC was changed, or someone is interfering with the connection on the network. Until you decide, this profile stays paused.</string>
+    <string name="sign_allow">Allow without signing</string>
+    <string name="sign_allow_title">Allow without signing?</string>
+    <string name="sign_allow_text">Afterwards, the connection of this profile can be altered unnoticed. Only choose this if you changed the setting on the NAS or PC yourself. On the next run LeoSync remembers the new state.</string>
+    <string name="sign_allow_ok">Allow</string>
+    <!-- Conflict dialog: resolution and duration (SYNC-20261115-367) -->
+    <string name="conflict_res">%1$d × %2$d px</string>
+    <string name="conflict_res_video">%1$d × %2$d px · %3$s</string>
+    <string name="conflict_bigger">(larger)</string>
+    <string name="conflict_res_hint">Messengers often shrink photos. The file with the higher resolution usually has the better quality.</string>
+</resources>

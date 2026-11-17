@@ -22,6 +22,8 @@ $sections = [ordered]@{
     'strings_notif.xml'       = 'Benachrichtigungen'
     'strings_engine.xml'      = 'Sync-Ablauf, Verlauf-Texte, Fehlermeldungen'
     'strings_vendor.xml'      = 'Hersteller-Hinweise'
+    'strings_protect.xml'     = 'Schutz, Import-Checkliste, Umzug, Akku-Tipp'
+    'strings_problems.xml'    = 'Meldungen je Ursache, Sammelkachel'
 }
 
 function Read-Res([string]$path) {

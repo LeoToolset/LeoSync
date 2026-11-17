@@ -2,12 +2,16 @@
 #  LeoSync One-Click-Builder
 #  - baut nur, wenn sich der Quellcode seit dem letzten Build geaendert hat
 #  - erhoeht die Patch-Version automatisch, falls die aktuelle Version schon gebaut wurde
-#  - legt die signierte APK unter releases\LeoSync-<version>.apk ab
+#  - Release (Play-only, SYNC-20261114-346) legt ab:
+#      releases\LeoSync-<version>.aab        (bundleRelease, Upload fuer Google Play)
+#      releases\LeoSync-<version>.apk        (assembleRelease, signiert)
+#      releases\LeoSync-<version>-debug.apk  (assembleDebug, fuer QA)
+#    Bestehende Dateien in releases\ werden nie ueberschrieben oder geloescht.
 #
 #  Aufruf:  build.bat                (normal)
 #           build.bat -Force         (immer bauen)
 #           build.bat -SkipTests     (Unit-Tests ueberspringen)
-#           build.bat -Debug         (Debug-APK statt Release)
+#           build.bat -Debug         (nur Debug-APK)
 #           build.bat -NoPause       (am Ende nicht auf eine Taste warten; wertet build.bat aus)
 # ============================================================================
 param(
@@ -162,15 +166,23 @@ $v = Read-Version
 $version = "$($v[0]).$($v[1]).$($v[2])"
 $suffix = if ($Debug) { "-debug" } else { "" }
 $apkOut = Join-Path $Root "releases\LeoSync-$version$suffix.apk"
+# Alle Ausgabedateien des Laufs: Existiert eine davon schon, gilt die Version als gebaut (nie ueberschreiben)
+function Get-OutputPaths {
+    param([string]$Ver)
+    if ($Debug) { return @((Join-Path $Root "releases\LeoSync-$Ver-debug.apk")) }
+    return @((Join-Path $Root "releases\LeoSync-$Ver.aab"), (Join-Path $Root "releases\LeoSync-$Ver.apk"), (Join-Path $Root "releases\LeoSync-$Ver-debug.apk"))
+}
+$outPaths = Get-OutputPaths -Ver $version
+$alreadyBuilt = (@($outPaths | Where-Object { Test-Path $_ })).Count -gt 0
 
-if (-not $Force -and $srcHash -eq $lastHash -and (Test-Path $apkOut)) {
+if (-not $Force -and $srcHash -eq $lastHash -and $alreadyBuilt) {
     Write-Host "Keine Aenderungen seit dem letzten Build ($version). Nichts zu tun." -ForegroundColor Green
     Write-Host "Erzwingen mit: build.bat -Force"
     exit 0
 }
 
 # ---------------------------------------------------------------------------
-if (Test-Path $apkOut) {
+if ($alreadyBuilt) {
     Step "Version $version wurde bereits gebaut -> Patch-Version erhoehen"
     $v[2] = $v[2] + 1
     $version = "$($v[0]).$($v[1]).$($v[2])"
@@ -178,8 +190,9 @@ if (Test-Path $apkOut) {
     $t = [regex]::Replace($t, "(?m)^VERSION_PATCH=\d+", "VERSION_PATCH=$($v[2])")
     [IO.File]::WriteAllText($verFile, $t, $Utf8)
     $apkOut = Join-Path $Root "releases\LeoSync-$version$suffix.apk"
+    $outPaths = Get-OutputPaths -Ver $version
 
-    $pn = Join-Path $Root "PATCHNOTES.md"
+    $pn =Join-Path $Root "PATCHNOTES.md"
     if (Test-Path $pn) {
         $notes = [IO.File]::ReadAllText($pn, $Utf8)
         if ($notes -notmatch [regex]::Escape("## $version")) {
@@ -198,25 +211,17 @@ if (-not $Debug) {
     Step "Pruefe Signatur-Schluessel"
     $ksProps = Join-Path $Root "keystore.properties"
     if (-not (Test-Path $ksProps)) {
-        $ksDir = Join-Path $Root "keystore"
-        New-Item -ItemType Directory -Force $ksDir | Out-Null
-        $ks = Join-Path $ksDir "sync2pc-release.jks"
-        $pw = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object { [char]$_ })
-        $keytool = Join-Path $javaHome "bin\keytool.exe"
-        & $keytool -genkeypair -v -keystore $ks -storetype PKCS12 -alias sync2pc -keyalg RSA -keysize 4096 `
-            -validity 36500 -storepass $pw -keypass $pw -dname "CN=LeoSync, O=Leo" | Out-Null
-        if ($LASTEXITCODE -ne 0) { Fail "Keystore konnte nicht erstellt werden" }
-        $content = "storeFile=keystore/sync2pc-release.jks`nstorePassword=$pw`nkeyAlias=sync2pc`nkeyPassword=$pw`n"
-        [IO.File]::WriteAllText($ksProps, $content, $Utf8)
-        Write-Host "Neuer Signatur-Schluessel erstellt: keystore\sync2pc-release.jks" -ForegroundColor Yellow
-        Write-Host "WICHTIG: keystore\ und keystore.properties sichern! Ohne sie sind keine Updates der installierten App moeglich." -ForegroundColor Yellow
+        # Play App Signing (SYNC-20261114-346): Der Builder erzeugt oder ueberschreibt keinen Schluessel.
+        # Den Upload-Schluessel legt der Inhaber an (keytool, siehe build.md) und tragt ihn in keystore.properties ein.
+        Fail ("keystore.properties fehlt. Der Builder legt keinen Schluessel selbst an: Upload-Schluessel fuer Google Play vom Inhaber anlegen " +
+              "lassen und in keystore.properties eintragen (storeFile, storePassword, keyAlias, keyPassword; Details: build.md). Nur Debug: build.bat -Debug")
     } else { Write-Host "vorhanden" }
 }
 
 # ---------------------------------------------------------------------------
 $tasks = @()
 if (-not $SkipTests) { $tasks += "testDebugUnitTest" }
-if ($Debug) { $tasks += "assembleDebug" } else { $tasks += "assembleRelease" }
+if ($Debug) { $tasks += "assembleDebug" } else { $tasks += @("bundleRelease", "assembleRelease", "assembleDebug") }
 Step ("Gradle: " + ($tasks -join " "))
 # Ausgabe zusaetzlich in .build\last-build.log schreiben (zum Weitergeben an den Agent)
 $logFile = Join-Path $StateDir "last-build.log"
@@ -237,13 +242,26 @@ try {
 }
 if ($gradleExit -ne 0) { Fail "Gradle-Build fehlgeschlagen. Vollstaendiges Protokoll: $logFile" }
 
-$built = if ($Debug) { "app\build\outputs\apk\debug\app-debug.apk" } else { "app\build\outputs\apk\release\app-release.apk" }
-$built = Join-Path $Root $built
-if (-not (Test-Path $built)) { Fail "APK nicht gefunden: $built" }
-Copy-Item -Force $built $apkOut
+# Quelle -> Ziel; vorhandene Dateien in releases\ werden nie ueberschrieben
+$copies = @()
+if ($Debug) {
+    $copies += ,@("app\build\outputs\apk\debug\app-debug.apk", (Join-Path $Root "releases\LeoSync-$version-debug.apk"))
+} else {
+    $copies += ,@("app\build\outputs\bundle\release\app-release.aab", (Join-Path $Root "releases\LeoSync-$version.aab"))
+    $copies += ,@("app\build\outputs\apk\release\app-release.apk", (Join-Path $Root "releases\LeoSync-$version.apk"))
+    $copies += ,@("app\build\outputs\apk\debug\app-debug.apk", (Join-Path $Root "releases\LeoSync-$version-debug.apk"))
+}
+foreach ($c in $copies) {
+    if (-not (Test-Path (Join-Path $Root $c[0]))) { Fail "Build-Ausgabe nicht gefunden: $($c[0])" }
+    if (Test-Path $c[1]) { Fail "Zieldatei existiert bereits und wird nie ueberschrieben: $($c[1])" }
+}
+foreach ($c in $copies) { Copy-Item (Join-Path $Root $c[0]) $c[1] }
 [IO.File]::WriteAllText($hashFile, $srcHash, $Utf8)
 
 Step "Fertig"
-$mb = [math]::Round((Get-Item $apkOut).Length / 1MB, 1)
-Write-Host "APK: $apkOut ($mb MB)" -ForegroundColor Green
-Write-Host "Installation: APK aufs Telefon kopieren und oeffnen, oder: adb install -r `"$apkOut`""
+foreach ($c in $copies) {
+    $mb = [math]::Round((Get-Item $c[1]).Length / 1MB, 1)
+    Write-Host "$([IO.Path]::GetFileName($c[1])): $($c[1]) ($mb MB)" -ForegroundColor Green
+}
+if ($Debug) { Write-Host "Installation: adb install -r `"$($copies[0][1])`"" }
+else { Write-Host "Google Play: releases\LeoSync-$version.aab in der Play Console hochladen (Upload-Schluessel, Play App Signing)." }

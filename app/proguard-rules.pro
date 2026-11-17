@@ -11,6 +11,9 @@
     @net.engio.mbassy.listener.Handler *;
 }
 
+# Ausnahmeklassen behalten ihre Namen: «Technische Details» und Verlauf zeigen den Klassennamen (sonst «un1: …»)
+-keepnames class * extends java.lang.Throwable
+
 # --- BouncyCastle (Kryptografie fuer SMB3/NTLM), wird per Provider-Name geladen ----
 -keep class org.bouncycastle.** { *; }
 

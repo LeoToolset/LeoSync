@@ -17,6 +17,7 @@
         <item quantity="other">%1$s Dateien sind verifiziert gesichert. Tippen, um sie vom Handy zu entfernen.</item>
     </plurals>
     <string name="notif_wait_wifi">Wartet auf WLAN</string>
+    <string name="notif_resuming">Wird fortgesetzt …</string>
     <string name="notif_wait_wifi_named">Wartet auf WLAN „%1$s“</string>
     <string name="notif_paused_files">%1$s / %2$s Dateien</string>
     <plurals name="notif_conflict_text">
@@ -30,7 +31,4 @@
         <item quantity="other">Seit %1$s Tagen nicht gesichert</item>
     </plurals>
     <string name="notif_stale_text">Ist das Heim-WLAN verbunden und der PC eingeschaltet? Tippen zum Öffnen.</string>
-    <string name="notif_update_text">LeoSync %1$s ist verfügbar. Tippen zum Installieren.</string>
-    <string name="notif_installed_title">Update installiert</string>
-    <string name="notif_installed_text">LeoSync wurde auf Version %1$s aktualisiert. Tippen zum Öffnen.</string>
 </resources>

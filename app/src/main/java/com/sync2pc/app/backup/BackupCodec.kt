@@ -4,6 +4,7 @@ import com.sync2pc.app.data.FolderLayout
 import com.sync2pc.app.data.FolderMapping
 import com.sync2pc.app.data.MirrorState
 import com.sync2pc.app.data.Profile
+import com.sync2pc.app.data.ProfileType
 import com.sync2pc.app.data.SmbEncryption
 import com.sync2pc.app.data.SyncedFile
 import com.sync2pc.app.sync.PcCheckMode
@@ -221,14 +222,28 @@ object BackupCodec {
         else -> d.verifyLevel
     }
 
+    /**
+     * Fotos und Videos aus der Sicherung; ein Fotos-Profil mit beiden aus (sicherte nichts, SYNC-20261115-384) wird auf «beide an»
+     * gesetzt, statt das Profil zu verwerfen.
+     */
+    internal fun normalizedMedia(o: JSONObject, d: Profile): Pair<Boolean, Boolean> {
+        val img = o.optBoolean("includeImages", d.includeImages)
+        val vid = o.optBoolean("includeVideos", d.includeVideos)
+        return mediaFlags(img, vid, ProfileType.of(o.optString("profileType", d.profileType)) == ProfileType.PHOTOS)
+    }
+
+    /** Reine Regel zu [normalizedMedia] */
+    internal fun mediaFlags(images: Boolean, videos: Boolean, photosProfile: Boolean): Pair<Boolean, Boolean> =
+        if (photosProfile && !images && !videos) true to true else images to videos
+
     private fun profileFromJson(o: JSONObject): Profile {
         val d = Profile()
         return Profile(
             id = o.optLong("id", 0), name = o.optString("name", d.name).trim(), enabled = o.optBoolean("enabled", d.enabled),
             smbPath = o.optString("smbPath", d.smbPath), smbUser = o.optString("smbUser", d.smbUser),
             smbDomain = o.optString("smbDomain", d.smbDomain), smbPasswordEnc = "",
-            sourceFolders = o.optString("sourceFolders", d.sourceFolders), wifiSsids = o.optString("wifiSsids", d.wifiSsids),
-            includeImages = o.optBoolean("includeImages", d.includeImages), includeVideos = o.optBoolean("includeVideos", d.includeVideos),
+            sourceFolders = o.optString("sourceFolders", d.sourceFolders), wifiSsids = "", // WLAN-Namen aus Sicherungen werden ignoriert (0.19.0, SYNC-20261115-351)
+            includeImages = normalizedMedia(o, d).first, includeVideos = normalizedMedia(o, d).second,
             includeSubfolders = o.optBoolean("includeSubfolders", d.includeSubfolders),
             deleteMode = o.optString("deleteMode", d.deleteMode), verifyUpload = o.optBoolean("verifyUpload", d.verifyUpload),
             profileType = o.optString("profileType", d.profileType), direction = o.optString("direction", d.direction),
@@ -242,7 +257,8 @@ object BackupCodec {
             massDeletePercent = o.optInt("massDeletePercent", d.massDeletePercent).coerceIn(1, 100),
             keepVersions = o.optBoolean("keepVersions", d.keepVersions),
             verifyLevel = verifyLevelFromJson(o, d),
-            // PC-Erkennung (0.13.0): fehlend/unbekannt = WIFI und keine Kennung; Kennung/Host normalisiert (Kleinbuchstaben)
+            // PC-Erkennung: seit 0.19.0 immer GUID (WIFI/BOTH aus alten Sicherungen werden als GUID gespeichert; ohne bekannte Kennung
+            // wartet das Profil auf «Verbindung testen»); Kennung/Host normalisiert (Kleinbuchstaben)
             pcCheck = PcCheckMode.parse(o.optString("pcCheck", "")).name,
             pcGuid = PcIdentity.normalize(o.optString("pcGuid", "")).orEmpty(),
             pcGuidHost = PcIdentity.normalizeHost(o.optString("pcGuidHost", "")),

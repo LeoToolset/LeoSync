@@ -34,11 +34,12 @@ object RunSummary {
      * Ordner-Sync: nur Teile, die nicht 0 sind. [deferred] = während des Laufs geänderte Dateien, die beim nächsten Sync folgen
      * (SYNC-20261111-173/-177): angehängt als «… · N folgen später», kein Fehler.
      */
-    fun mirror(up: Int, down: Int, trashed: Int, conflicts: Int, failed: Int, spaceShortage: Boolean, deferred: Int = 0): Msg {
+    fun mirror(up: Int, down: Int, trashed: Int, conflicts: Int, failed: Int, spaceShortage: Boolean, deferred: Int = 0, renamed: Int = 0): Msg {
         val parts = buildList {
             if (up > 0) add(Msg.of(R.string.run_up, up))
             if (down > 0) add(Msg.of(R.string.run_down, down))
             if (trashed > 0) add(Msg.of(R.string.run_trashed, trashed))
+            if (renamed > 0) add(Msg.of(R.string.run_renamed, renamed))
             if (conflicts > 0) add(Msg.plural(R.plurals.run_conflicts, conflicts))
             if (failed > 0) add(Msg.plural(R.plurals.run_failed, failed))
             if (spaceShortage) add(Msg.of(R.string.run_space_full))

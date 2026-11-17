@@ -21,6 +21,14 @@ interface SyncDao {
     @Query("SELECT * FROM profiles WHERE id = :id")
     suspend fun profile(id: Long): Profile?
 
+    /** Automatische Umstellung PREFERRED -> REQUIRED (B11a, -338): atomar, nur wenn die Stufe noch «Wenn möglich» ist; Anzahl geänderter Zeilen */
+    @Query("UPDATE profiles SET smbEncryption = 'REQUIRED' WHERE id = :id AND smbEncryption = 'PREFERRED'")
+    suspend fun upgradeEncryption(id: Long): Int
+
+    /** Aktion «Unverschlüsselte Verbindung erlauben» (B4, -338): bewusste Rückstufung REQUIRED -> «Wenn möglich»; Anzahl geänderter Zeilen */
+    @Query("UPDATE profiles SET smbEncryption = 'PREFERRED' WHERE id = :id AND smbEncryption = 'REQUIRED'")
+    suspend fun allowUnencrypted(id: Long): Int
+
     @Insert
     suspend fun insertProfile(p: Profile): Long
 
@@ -52,7 +60,7 @@ interface SyncDao {
     }
 
     /** Lernt die PC-Kennung nur, wenn noch keine (oder nur die eines anderen Hosts) gespeichert ist; nie still überschreiben. [host] kleingeschrieben. Rückgabe: geänderte Zeilen. */
-    @Query("UPDATE profiles SET pcGuid = :guid, pcGuidHost = :host WHERE id = :id AND pcCheck = :mode AND (pcGuid = '' OR pcGuidHost <> :host)")
+    @Query("UPDATE profiles SET pcGuid = :guid, pcGuidHost = :host WHERE id = :id AND pcCheck IN (:mode, 'WIFI', 'BOTH') AND (pcGuid = '' OR pcGuidHost <> :host)")
     suspend fun learnPcGuid(id: Long, host: String, guid: String, mode: String): Int
 
     /** Gelernte Kennung vergessen (Wechsel auf GUID/BOTH, Hostwechsel): verringert nur das Vertrauen */

@@ -43,8 +43,34 @@ object EncryptionStatus {
         return v[0] == '1'
     }
 
+    /**
+     * SYNC-20261116-446: Reine Entscheidung (getestet): Soll der Status durch eine Prüfverbindung ermittelt werden? Ja, wenn er
+     * unbekannt ist (nie aufgezeichnet oder Profil seither geändert) und für diesen Profilstand noch kein Versuch lief. Ein
+     * gescheiterter Versuch wird für denselben Profilstand nicht wiederholt (keine wiederholten Anmeldeversuche mit falschem Passwort).
+     */
+    fun shouldVerify(lastKnown: Boolean?, attemptedFingerprint: String?, fingerprint: String): Boolean =
+        lastKnown == null && attemptedFingerprint != fingerprint
+
+    /**
+     * Ein Fotoprofil ohne Arbeit verbindet sich nicht und frischt den Status nie auf: nach einer Profiländerung blieb das Symbol weg,
+     * obwohl die Verschlüsselung erzwungen ist. Dann einmal prüfen, ob die Verbindung wirklich verschlüsselt ist (das Symbol sagt
+     * nur dann etwas aus, wenn es von einer echten Sitzung stammt). [verify] öffnet die Sitzung (zeichnet den Status selbst auf).
+     */
+    fun verifyIfUnknown(p: Profile, verify: () -> Unit) {
+        val ctx = appContext ?: return
+        if (p.id == 0L) return
+        val fp = fingerprint(p)
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!shouldVerify(lastKnown(p), prefs.getString("a${p.id}", null), fp)) return
+        prefs.edit().putString("a${p.id}", fp).apply() // vor dem Versuch: auch ein Abbruch zählt als Versuch
+        try { verify() } catch (ignored: Exception) {}
+    }
+
     /** Beim Löschen eines Profils */
-    fun forget(p: Profile) {
-        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.remove("p${p.id}")?.apply()
+    fun forget(p: Profile) = forget(p.id)
+
+    /** Status (p<ID>) und Prüfversuch (a<ID>) eines endgültig gelöschten Profils entfernen (SYNC-20261116-448) */
+    fun forget(profileId: Long) {
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.remove("p$profileId")?.remove("a$profileId")?.apply()
     }
 }

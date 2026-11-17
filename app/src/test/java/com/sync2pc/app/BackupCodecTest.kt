@@ -97,17 +97,26 @@ class BackupCodecTest {
         val g = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
         val c = content().copy(profiles = listOf(content().profiles.single().copy(pcCheck = "BOTH", pcGuid = g, pcGuidHost = "192.0.2.3")))
         val p = BackupCodec.parse(BackupCodec.encode(c, exportPassword = null, iterations = fast), null).content.profiles.single()
-        assertEquals("BOTH", p.pcCheck)
+        // seit 0.19.0 (SYNC-20261115-351): WIFI/BOTH aus der Sicherung werden als GUID gespeichert, die bekannte PC-Kennung bleibt
+        assertEquals("GUID", p.pcCheck)
         assertEquals(g, p.pcGuid)
         assertEquals("192.0.2.3", p.pcGuidHost)
     }
 
-    @Test fun olderBackupWithoutPcRecognitionIsWifiOnly() {
+    @Test fun olderBackupWithoutPcRecognitionIsGuidWithoutKnownId() {
         val json = """{"format":"leosync-backup","version":1,"profiles":[{"id":1,"name":"Alt","smbPath":"\\\\pc\\x"}]}"""
         val p = BackupCodec.parse(json, null).content.profiles.single()
-        assertEquals("WIFI", p.pcCheck)
+        assertEquals("GUID", p.pcCheck) // wartet auf «Verbindung testen», bis eine PC-Kennung bekannt ist
         assertEquals("", p.pcGuid)
         assertEquals("", p.pcGuidHost)
+    }
+
+    @Test fun wifiNamesAndWifiModesFromOldBackupsAreIgnored() {
+        val json = """{"format":"leosync-backup","version":1,"profiles":[{"id":1,"name":"Alt","pcCheck":"WIFI","wifiSsids":"Heim\nHeim 5G"}]}"""
+        val p = BackupCodec.parse(json, null).content.profiles.single()
+        assertEquals("GUID", p.pcCheck)
+        assertEquals("", p.wifiSsids)
+        assertTrue(p.ssids().isEmpty())
     }
 
     @Test fun pcRecognitionIsNormalisedOnImport() {
@@ -116,10 +125,10 @@ class BackupCodecTest {
         assertEquals("GUID", p.pcCheck)
         assertEquals("3f2504e0-4f89-11d3-9a0c-0305e82c3301", p.pcGuid)
         assertEquals("pc-leo", p.pcGuidHost)
-        // unbekannter Modus und Null-Kennung: sicher auf WIFI bzw. leer
+        // unbekannter Modus und Null-Kennung: GUID bzw. leer
         val bad = """{"format":"leosync-backup","version":1,"profiles":[{"id":1,"name":"X","pcCheck":"XYZ","pcGuid":"00000000-0000-0000-0000-000000000000"}]}"""
         val b = BackupCodec.parse(bad, null).content.profiles.single()
-        assertEquals("WIFI", b.pcCheck)
+        assertEquals("GUID", b.pcCheck)
         assertEquals("", b.pcGuid)
     }
 

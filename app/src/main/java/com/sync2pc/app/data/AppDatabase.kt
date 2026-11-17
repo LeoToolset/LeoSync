@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MediaInfo::class, SyncRun::class, LogEntry::class, MirrorState::class, MirrorConflict::class,
         PendingRestore::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,12 +26,21 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "sync2pc.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .build().also { instance = it }
             }
 
         // Wichtig: Kein fallbackToDestructiveMigration() – fehlt eine Migration, soll die App
         // lieber abstürzen, als still alle Daten zu löschen.
+
+        /** SYNC-20261115-367: Auflösung und Dauer der PC-Seite im Konflikt (nullable, bestehende Konflikte = noch nicht gelesen). */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE mirror_conflicts ADD COLUMN remoteWidth INTEGER")
+                db.execSQL("ALTER TABLE mirror_conflicts ADD COLUMN remoteHeight INTEGER")
+                db.execSQL("ALTER TABLE mirror_conflicts ADD COLUMN remoteDurationMs INTEGER")
+            }
+        }
 
         /** SYNC-20261111-173: Zähler «verschoben» je Lauf (Dateien, die sich während des Laufs änderten). Bestehende Läufe = 0. */
         val MIGRATION_10_11 = object : Migration(10, 11) {

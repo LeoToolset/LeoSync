@@ -28,13 +28,11 @@ object Notifications {
     const val ID_SUMMARY = 1002
     const val ID_DECISION = 1003
     const val ID_DELETE = 1004
-    const val ID_UPDATE = 1005
 
     const val EXTRA_OPEN = "open"
     const val OPEN_DECISIONS = "decisions"
     const val OPEN_DELETE = "delete"
     const val OPEN_LOG = "log"
-    const val OPEN_UPDATE = "update"
     const val OPEN_CONFLICTS = "conflicts"
     const val ID_CONFLICT = 1006
     const val ID_INTERRUPTED = 1007
@@ -258,17 +256,4 @@ object Notifications {
             null, largeImage = R.drawable.dog_wait)
 
     fun cancelStale(context: Context) = NotificationManagerCompat.from(context).cancel(ID_STALE)
-
-    fun updateAvailable(context: Context, version: String) {
-        if (!s(context).notifyUpdate) return // steht auch auf der Startseite ("Update verfügbar")
-        post(context, ID_UPDATE, CH_ALERTS, str(R.string.home_update_title),
-            str(R.string.notif_update_text, version), OPEN_UPDATE)
-    }
-
-    /** Nach einem Selbst-Update, falls Android den automatischen Neustart der App nicht erlaubt */
-    fun updateInstalled(context: Context, version: String) {
-        if (!s(context).notifyUpdate) return
-        post(context, ID_UPDATE, CH_ALERTS, str(R.string.notif_installed_title),
-            str(R.string.notif_installed_text, version), null)
-    }
 }

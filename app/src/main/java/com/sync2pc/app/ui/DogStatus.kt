@@ -133,15 +133,17 @@ private fun StatusCircle(state: DogState) {
 }
 
 @Composable
-fun DogStatus(state: DogState, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(AREA_HEIGHT), contentAlignment = Alignment.Center) {
-        StatusCircle(state)
+fun DogStatus(state: DogState, modifier: Modifier = Modifier, compact: Boolean = false) {
+    // Kompakt (SYNC-20261115-416 D, bei grosser Schrift mit sichtbarer Sammelkachel): kleinerer Hund ohne Kreis
+    val k = if (compact) 0.55f else 1f
+    Box(modifier.fillMaxWidth().height(AREA_HEIGHT * k), contentAlignment = Alignment.Center) {
+        if (!compact) StatusCircle(state)
         when (state) {
-            DogState.RUNNING -> RunningDog(sized(RUNNING_HEIGHT))
-            DogState.WAITING -> Image(painterResource(R.drawable.dog_wait), com.sync2pc.app.l10n.str(R.string.dog_waiting), sized(SITTING_HEIGHT))
-            DogState.SLEEPING -> Image(painterResource(R.drawable.dog_idle), com.sync2pc.app.l10n.str(R.string.dog_idle), sized(SLEEPING_HEIGHT))
-            DogState.PAUSED -> Image(painterResource(R.drawable.dog_pause), com.sync2pc.app.l10n.str(R.string.log_status_paused), sized(PAUSED_HEIGHT))
-            DogState.ATTENTION -> Image(painterResource(R.drawable.dog_attention), com.sync2pc.app.l10n.str(R.string.log_status_waiting), sized(ATTENTION_HEIGHT))
+            DogState.RUNNING -> RunningDog(sized(RUNNING_HEIGHT * k))
+            DogState.WAITING -> Image(painterResource(R.drawable.dog_wait), com.sync2pc.app.l10n.str(R.string.dog_waiting), sized(SITTING_HEIGHT * k))
+            DogState.SLEEPING -> Image(painterResource(R.drawable.dog_idle), com.sync2pc.app.l10n.str(R.string.dog_idle), sized(SLEEPING_HEIGHT * k))
+            DogState.PAUSED -> Image(painterResource(R.drawable.dog_pause), com.sync2pc.app.l10n.str(R.string.log_status_paused), sized(PAUSED_HEIGHT * k))
+            DogState.ATTENTION -> Image(painterResource(R.drawable.dog_attention), com.sync2pc.app.l10n.str(R.string.log_status_waiting), sized(ATTENTION_HEIGHT * k))
         }
     }
 }

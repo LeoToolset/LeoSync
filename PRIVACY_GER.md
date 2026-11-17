@@ -1,7 +1,7 @@
 # Datenschutzerklärung – LeoSync
 
-**Stand:** 9. November 2026  
-**Version:** 1.1
+**Stand:** 15. November 2026  
+**Version:** 1.2
 
 Diese Datenschutzerklärung informiert darüber, welche Daten durch die Android-App LeoSync verarbeitet werden und wie mit diesen Daten umgegangen wird.
 
@@ -11,7 +11,7 @@ LeoSync ist eine Anwendung der Marke Leo und wurde mit dem Ziel entwickelt, Foto
 
 Verantwortlich für die Datenverarbeitung:
 
-- **Entwickler:** [Vor- und Nachname]
+- **Entwickler:** Raffael Baldinger
 - **Land:** Schweiz
 - **Kontakt:** leotools@protonmail.com
 
@@ -33,7 +33,7 @@ LeoSync verwendet keine:
 
 Es findet keine automatische Übermittlung von Nutzungsstatistiken oder persönlichen Daten an den Entwickler statt.
 
-Einzige Verbindung ins Internet ausserhalb der SMB-Synchronisierung ist die Prüfung auf App-Updates bei GitHub (siehe Abschnitt 8).
+LeoSync wird ausschliesslich über Google Play verteilt und aktualisiert; die App selbst fragt keine Updates ab (siehe Abschnitt 8).
 
 ## 3. Fotos und Videos
 
@@ -59,11 +59,13 @@ GPS-Koordinaten werden nicht automatisch an den Entwickler übertragen.
 
 Bei der Übertragung von Originalfotos können deren ursprüngliche EXIF-Metadaten Bestandteil der übertragenen Dateien bleiben.
 
-### 4.1 WLAN-Name und Standortberechtigung
+### 4.1 Keine Standortberechtigung, Erkennung des PCs
 
-Damit automatische Synchronisierungen nur in den vom Nutzer festgelegten WLAN-Netzen starten, liest LeoSync den Namen (SSID) des aktuell verbundenen WLANs. Android gibt diesen Namen nur mit der Standortberechtigung heraus. Für den automatischen Start im Hintergrund wird die Berechtigung «Immer zulassen» benötigt, ausserdem muss der Standortdienst eingeschaltet sein. Zusätzlich benötigt die App Zugriff auf den Medienstandort (Berechtigung für GPS-Daten in Fotos, siehe Abschnitt 4).
+LeoSync fragt den Standort des Geräts nicht ab und benötigt dafür keine Standortberechtigung. Der Name des WLANs (SSID) wird nicht gelesen. Den PC erkennt LeoSync an seiner Kennung (SMB-Server-Kennung), die geprüft wird, bevor Benutzername und Passwort gesendet werden.
 
-Der WLAN-Name wird ausschliesslich lokal auf dem Gerät ausgewertet und nicht an den Entwickler oder Dritte übertragen. LeoSync erstellt keine Standortverläufe und verwendet den Gerätestandort nicht für andere Zwecke. Die Berechtigung kann jederzeit in den Android-Einstellungen widerrufen werden; die automatische Synchronisierung über den WLAN-Namen ist dann nicht möglich, die manuelle Synchronisierung bleibt nutzbar.
+Damit die App in unbekannten Netzen den Akku schont, speichert sie lokal auf dem Gerät einen technischen Fingerabdruck der Netze, in denen der PC sicher erkannt wurde (gebildet aus Netzwerkangaben wie Adresse des Routers, Adressbereich und Suchdomäne). Dieser Fingerabdruck verlässt das Gerät nicht, enthält weder Standort noch WLAN-Namen und kann in den Profileinstellungen mit «Vergessen» gelöscht werden.
+
+Die Berechtigung «Standort in Fotos» (Zugriff auf GPS-Daten in Fotos, siehe Abschnitt 4) fragt die App nur, wenn der Nutzer für ein Fotos-Profil Länderordner wählt, und erst nach einer Erklärung. Der Aufnahmeort wird ausschliesslich lokal auf dem Gerät ausgewertet, nicht gespeichert und nicht übertragen. Die Berechtigung kann jederzeit in den Android-Einstellungen widerrufen werden; die Länderordner stehen dann nicht zur Verfügung.
 
 ## 5. SMB-Verbindungen und Zugangsdaten
 
@@ -170,13 +172,13 @@ LeoSync verwendet keine externen Analytics-, Werbe-, Tracking- oder Cloud-SDKs.
 
 Es findet keine automatische Weitergabe von Nutzerdaten an Werbe- oder Analyseanbieter statt.
 
-### 8.1 Update-Prüfung über GitHub
+### 8.1 Verteilung und Updates über Google Play
 
-Die über GitHub verteilte Variante der App prüft regelmässig (täglich, im WLAN) und beim Öffnen der Update-Seite, ob auf GitHub (api.github.com, öffentliches Repository von LeoSync) eine neuere Version veröffentlicht ist. Dabei wird eine Anfrage an GitHub gesendet; GitHub erhält technisch bedingt die IP-Adresse des Geräts sowie die Angabe «LeoSync» mit der installierten App-Version (User-Agent). Weitere Nutzerdaten, Profile, Dateien oder Zugangsdaten werden nicht übermittelt. Bei einer neueren Version lädt die App die Installationsdatei erst nach Tippen des Nutzers von GitHub herunter und installiert sie über den Android-Paketinstaller. Es gelten die Datenschutzbestimmungen von GitHub.
+LeoSync wird ausschliesslich über Google Play verteilt und aktualisiert. Die App enthält keine eigene Update-Prüfung und stellt dafür keine Verbindung zu GitHub oder zu anderen Servern her. Für den Bezug und die Aktualisierung über Google Play gelten die Datenschutzbestimmungen von Google. Frühere, über GitHub verteilte Versionen der App werden nicht mehr gepflegt.
 
 ### 8.2 Hilfe und Produktseite
 
-Der Menüpunkt «Hilfe & Produktseite» öffnet die Produktseite von LeoSync (apop85.github.io/leosync) im Browser des Nutzers. Es werden keine Daten aus der App übergeben.
+Der Menüpunkt «Hilfe & Produktseite» öffnet die Produktseite von LeoSync (leotoolset.github.io/leosync) im Browser des Nutzers. Es werden keine Daten aus der App übergeben.
 
 ### 8.3 Weitere Datenabflüsse
 
@@ -213,7 +215,7 @@ Dateien werden auf dem Android-Gerät und den vom Nutzer konfigurierten SMB-Spei
 
 **Sicherung (Export/Import):** LeoSync kann Profile, Einstellungen und optional den Synchronisationsstatus in eine Datei exportieren. Sie enthält unter anderem Serveradressen, Freigabepfade und Benutzernamen. SMB-Passwörter werden nur auf Wunsch aufgenommen und dann mit einem vom Nutzer gewählten Export-Passwort verschlüsselt (AES-256); ohne Export-Passwort enthält die Datei keine Passwörter. Die Datei wird dort gespeichert beziehungsweise hin geteilt, wo der Nutzer es bestimmt; sie sollte entsprechend geschützt werden. Die App selbst legt keine automatische Android-Datensicherung (allowBackup) an.
 
-**Papierkorb und Versionsschutz:** Beim Ersetzen oder Löschen von Dateien in Ordner-Profilen werden Dateien je nach Einstellung in einen versteckten Papierkorb-Ordner (`.LeoSync-Bin`) auf dem Handy beziehungsweise der Freigabe verschoben und nach der eingestellten Frist automatisch oder von Hand endgültig gelöscht. Diese Ordner liegen ausschliesslich auf den Speicherorten des Nutzers.
+**Papierkorb und Versionsschutz:** Beim Ersetzen oder Löschen von Dateien in Ordner-Profilen werden Dateien je nach Einstellung in einen Papierkorb-Ordner (`@LeoSync-Bin`) auf dem Handy beziehungsweise der Freigabe verschoben und nach der eingestellten Frist automatisch oder von Hand endgültig gelöscht. Diese Ordner liegen ausschliesslich auf den Speicherorten des Nutzers.
 
 Lokale App-Daten und Einstellungen können über die Android-App-Verwaltung gelöscht werden. Beim Deinstallieren der Anwendung werden die zugehörigen lokalen App-Daten im Rahmen der Android-Systemfunktionen entfernt.
 

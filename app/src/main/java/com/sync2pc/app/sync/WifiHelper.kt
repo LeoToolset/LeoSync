@@ -3,38 +3,26 @@ package com.sync2pc.app.sync
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.wifi.WifiInfo
-import android.net.wifi.WifiManager
-import android.os.Build
 
 object WifiHelper {
-    private const val UNKNOWN = "<unknown ssid>"
-
     /**
-     * Name des aktuell verbundenen WLANs oder null.
-     * Benötigt Standort-Berechtigung + aktivierten Standortdienst (Android-Vorgabe),
-     * im Hintergrund zusätzlich "Standort immer erlauben".
+     * Netz-Fingerabdruck des aktiven WLANs für «Bekannte Netze» (KnownNets): ohne Zusatzberechtigung aus den LinkProperties
+     * (ACCESS_NETWORK_STATE). Null = kein WLAN oder nichts Brauchbares lesbar.
      */
-    @Suppress("DEPRECATION")
-    fun currentSsid(context: Context): String? {
+    fun currentNetFingerprint(context: Context): String? {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
         val net = cm.activeNetwork ?: return null
         val caps = cm.getNetworkCapabilities(net) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        var ssid: String? = null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ssid = (caps.transportInfo as? WifiInfo)?.ssid
-        }
-        if (ssid == null || ssid == UNKNOWN) {
-            val wm = context.applicationContext.getSystemService(WifiManager::class.java)
-            ssid = wm?.connectionInfo?.ssid
-        }
-        if (ssid == null || ssid == UNKNOWN) return null
-        return ssid.removeSurrounding("\"")
+        val lp = cm.getLinkProperties(net) ?: return null
+        val v4 = lp.routes.filter { it.isDefaultRoute && it.gateway is java.net.Inet4Address }.mapNotNull { it.gateway?.hostAddress }
+        val gateways = v4.ifEmpty { lp.routes.filter { it.isDefaultRoute }.mapNotNull { it.gateway?.hostAddress } }
+        val prefix = lp.linkAddresses.firstOrNull { it.address is java.net.Inet4Address }
+            ?.let { KnownNets.ipv4Network(it.address.address, it.prefixLength) }
+        return KnownNets.fingerprint(gateways, prefix, lp.domains)
     }
 
     fun isOnWifi(context: Context): Boolean {
@@ -45,7 +33,7 @@ object WifiHelper {
 
     /**
      * Mobile Daten bzw. VPN über Mobilfunk (0.11.5, DEC-126): aktives Netz mit Internet, aber kein WLAN.
-     * Ein VPN über ein WLAN zählt als WLAN (dort gilt weiter die SSID-Regel).
+     * Ein VPN über ein WLAN zählt als WLAN.
      */
     fun isOnMobileOrVpn(context: Context): Boolean {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
@@ -55,22 +43,33 @@ object WifiHelper {
     }
 
     /**
-     * Darf jetzt automatisch synchronisiert werden? WLAN immer (SSID-Regel prüft der Aufrufer),
-     * mobile Daten/VPN nur mit dem Schalter [com.sync2pc.app.data.GlobalSettings.syncOffWifi].
+     * Roaming? Das aktive Netz hat die Fähigkeit NOT_ROAMING nicht (B7, SYNC-20261114-338). Bei einem VPN gilt die Fähigkeit des
+     * VPN-Netzes, die Android aus den zugrunde liegenden Netzen ableitet. Unbekannt = kein Roaming.
+     */
+    fun isRoaming(context: Context): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
+        return !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+    }
+
+    /**
+     * Darf jetzt automatisch synchronisiert werden? WLAN immer (Prüfung der PC-Kennung durch den Aufrufer),
+     * mobile Daten/VPN nur mit dem Schalter [com.sync2pc.app.data.GlobalSettings.syncOffWifi] und nicht im Roaming.
      */
     fun onAllowedNetwork(context: Context): Boolean =
         NetworkRules.onAllowedNetwork(
-            isOnWifi(context), isOnMobileOrVpn(context), com.sync2pc.app.data.GlobalSettings(context).syncOffWifi
+            isOnWifi(context), isOnMobileOrVpn(context), com.sync2pc.app.data.GlobalSettings(context).syncOffWifi, isRoaming(context)
         )
 
-    /** Nur mobile Daten/VPN, und der Schalter ist an: SSID-Prüfung entfällt */
+    /** Nur mobile Daten/VPN, der Schalter ist an und kein Roaming (kein Netz-Fingerabdruck) */
     fun offWifiSyncActive(context: Context): Boolean =
-        NetworkRules.offWifiSyncActive(isOnMobileOrVpn(context), com.sync2pc.app.data.GlobalSettings(context).syncOffWifi)
+        NetworkRules.offWifiSyncActive(isOnMobileOrVpn(context), com.sync2pc.app.data.GlobalSettings(context).syncOffWifi, isRoaming(context))
 
-    fun isLocationEnabled(context: Context): Boolean =
-        context.getSystemService(LocationManager::class.java)?.isLocationEnabled == true
+    /** Wird gerade nur wegen Roaming nicht über mobile Daten/VPN synchronisiert? */
+    fun skippedForRoaming(context: Context): Boolean =
+        NetworkRules.skippedForRoaming(isOnMobileOrVpn(context), com.sync2pc.app.data.GlobalSettings(context).syncOffWifi, isRoaming(context))
 
-    private fun pendingIntent(context: Context): PendingIntent =
+private fun pendingIntent(context: Context): PendingIntent =
         PendingIntent.getBroadcast(
             context, 0,
             Intent(context, WifiNetworkReceiver::class.java),

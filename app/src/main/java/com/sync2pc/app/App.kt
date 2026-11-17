@@ -16,6 +16,7 @@ class App : Application() {
         com.sync2pc.app.data.GlobalSettings(this).applyInstallDefaults()
         Texts.init(this)
         com.sync2pc.app.smb.EncryptionStatus.init(this)
+        com.sync2pc.app.smb.SigningStatus.init(this)
         // PC-Kennung: SmbSession liest/lernt den aktuellen DB-Stand (SYNC-20261109-047); Room öffnet die DB erst beim ersten Zugriff
         com.sync2pc.app.smb.SmbSession.pcStore =
             com.sync2pc.app.smb.RoomPcStore(com.sync2pc.app.data.AppDatabase.get(this).dao())

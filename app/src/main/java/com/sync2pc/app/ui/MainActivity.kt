@@ -7,7 +7,6 @@ import com.sync2pc.app.R
 import com.sync2pc.app.l10n.AppLanguage
 import com.sync2pc.app.l10n.plural
 import com.sync2pc.app.l10n.str
-import android.content.pm.PackageInstaller
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -28,11 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.IntentCompat
-import com.sync2pc.app.data.GlobalSettings
 import com.sync2pc.app.sync.DeletionManager
-import com.sync2pc.app.update.UpdateInstaller
-import com.sync2pc.app.update.UpdateScreen
 import com.sync2pc.app.sync.Notifications
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,7 +46,6 @@ sealed class Screen {
     data class Preview(val profileId: Long) : Screen()
     data object Log : Screen()
     data object Stats : Screen()
-    data object Update : Screen()
     data object Conflicts : Screen()
     data object FreeSpace : Screen()
     /** Papierkorb: wiederherstellen und aufräumen (0.6.3, ersetzt Restore und Purge) */
@@ -81,7 +75,6 @@ class MainActivity : ComponentActivity() {
             is Screen.Preview -> "preview:${s.profileId}"
             Screen.Log -> "log"
             Screen.Stats -> "stats"
-            Screen.Update -> "update"
             Screen.Conflicts -> "conflicts"
             Screen.FreeSpace -> "free"
             Screen.Trash -> "trash"
@@ -98,7 +91,6 @@ class MainActivity : ComponentActivity() {
                 "preview" -> arg.toLongOrNull()?.let { Screen.Preview(it) }
                 "log" -> Screen.Log
                 "stats" -> Screen.Stats
-                "update" -> Screen.Update
                 "conflicts" -> Screen.Conflicts
                 "free" -> Screen.FreeSpace
                 "trash" -> Screen.Trash
@@ -150,38 +142,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == UpdateInstaller.ACTION_INSTALL_STATUS) {
-            handleInstallStatus(intent)
-            intent.action = null
-            return
-        }
         when (intent?.getStringExtra(Notifications.EXTRA_OPEN)) {
             Notifications.OPEN_DECISIONS -> screen = Screen.Decisions
             Notifications.OPEN_LOG -> screen = Screen.Log
             Notifications.OPEN_DELETE -> { screen = Screen.Home; startDeleteFlow = true }
-            Notifications.OPEN_UPDATE -> screen = Screen.Update
             Notifications.OPEN_CONFLICTS -> screen = Screen.Conflicts
         }
         intent?.removeExtra(Notifications.EXTRA_OPEN)
-    }
-
-    /** Rückmeldung des Paketinstallers (siehe UpdateInstaller.install) */
-    private fun handleInstallStatus(intent: Intent) {
-        when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                // Bestätigungsdialog im eigenen Task öffnen -> nach der Installation kehrt Android hierher zurück
-                IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)?.let { startActivity(it) }
-            }
-            PackageInstaller.STATUS_SUCCESS -> { /* App wird ersetzt und neu gestartet */ }
-            else -> {
-                GlobalSettings(this).updateInstalling = ""
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: str(R.string.main_install_status, status)
-                val text = if (status == PackageInstaller.STATUS_FAILURE_CONFLICT || status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE)
-                    str(R.string.main_update_failed_key, msg) else str(R.string.main_update_failed, msg)
-                if (status != PackageInstaller.STATUS_FAILURE_ABORTED)
-                    Toast.makeText(this, text, Toast.LENGTH_LONG).show()
-            }
-        }
     }
 }
 
@@ -258,7 +225,6 @@ private fun AppRoot(
         is Screen.Preview -> PreviewScreen(profileId = screen.profileId, onBack = { navigate(Screen.ProfileEdit(screen.profileId)) })
         Screen.Log -> LogScreen(onBack = back)
         Screen.Stats -> StatsScreen(onBack = back)
-        Screen.Update -> UpdateScreen(onBack = back)
         Screen.Conflicts -> ConflictScreen(onBack = back)
         Screen.FreeSpace -> FreeSpaceScreen(onBack = back)
         Screen.Trash -> TrashScreen(onBack = back)

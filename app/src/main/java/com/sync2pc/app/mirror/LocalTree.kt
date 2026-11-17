@@ -152,6 +152,16 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
             return com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_sd_card) + ": " + path.replace(sd, "").trimEnd('/').ifEmpty { com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.free_main_folder) }
         }
 
+        /**
+         * SYNC-20261115-419: Der ExternalStorageProvider meldet für ".trashed-<ts>-<name>" (Papierkorb der Galerie) als Anzeigenamen
+         * nur "<name>", die Dokument-ID trägt den echten Dateinamen. Für diese Dateien den echten Namen verwenden, sonst greift
+         * [FileFilter] (".trashed-*") nie. Andere Dateien und fremde Provider (undurchsichtige IDs) bleiben unverändert.
+         */
+        fun realName(docId: String?, displayName: String): String {
+            val tail = docId?.substringAfterLast('/')?.substringAfterLast(':') ?: return displayName
+            return if (tail.startsWith(".trashed-", ignoreCase = true) && tail != displayName) tail else displayName
+        }
+
         fun mimeOf(name: String): String =
             MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
                 ?: "application/octet-stream"
@@ -178,7 +188,7 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
                 val mime = c.getString(2) ?: ""
                 out += LocalEntry(
                     docId = c.getString(0),
-                    name = c.getString(1) ?: continue,
+                    name = realName(c.getString(0), c.getString(1) ?: continue),
                     size = if (c.isNull(3)) 0 else c.getLong(3),
                     modified = if (c.isNull(4)) 0 else c.getLong(4),
                     isDir = mime == Document.MIME_TYPE_DIR,
@@ -297,13 +307,29 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
         val name = relDir.substringAfterLast('/')
         val parentId = ensureDir(parentRel)
         val existing = children(parentId).firstOrNull { it.isDir && it.name.equals(name, ignoreCase = true) }
-        val id = existing?.docId ?: run {
+        val id = existing?.docId ?: dirByPath(parentId, name) ?: run {
             val uri = DocumentsContract.createDocument(resolver, docUri(parentId), Document.MIME_TYPE_DIR, name)
                 ?: throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_mkdir, relDir))
+            // Der Anbieter darf den Namen eigenmächtig ändern («Ordner (1)»), wenn es ihn schon gibt, er aber nicht aufgelistet
+            // wurde (SYNC-20261115-374): das Duplikat entfernen (nur wenn leer) und melden, nie ein «(N)»-Ordner behalten
+            val actual = try { stat(DocumentsContract.getDocumentId(uri))?.name } catch (e: Exception) { null }
+            if (ProviderNames.renamed(name, actual)) {
+                try { if (rawChildCount(DocumentsContract.getDocumentId(uri)) == 0) DocumentsContract.deleteDocument(resolver, uri) } catch (ignored: Exception) {}
+                throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_name_taken, relDir))
+            }
             DocumentsContract.getDocumentId(uri)
         }
         dirIds[relDir.lowercase()] = id
         return id
+    }
+
+    /**
+     * Ordner direkt über seine Dokument-ID suchen, wenn der Anbieter pfadbasierte IDs hat (`primary:`, `raw:`) und die
+     * Auflistung ihn nicht zeigt (SYNC-20261115-374). null = keine pfadbasierte ID oder kein solcher Ordner.
+     */
+    private fun dirByPath(parentId: String, name: String): String? {
+        val id = ProviderNames.childIdByPath(parentId, name) ?: return null
+        return try { stat(id)?.takeIf { it.isDir && it.name.equals(name, ignoreCase = true) }?.docId } catch (e: Exception) { null }
     }
 
     fun openInput(docId: String, offset: Long = 0): InputStream {
@@ -376,7 +402,7 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
             resolver.query(finalUri, arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         } catch (e: Exception) { null }
-        if (actual != null && !actual.equals(name, ignoreCase = true)) {
+        if (ProviderNames.renamed(name, actual)) {
             try { DocumentsContract.deleteDocument(resolver, finalUri) } catch (ignored: Exception) {}
             backupId?.let { try { rename(it, name) } catch (ignored: Exception) {} }
             throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_name_taken, relPath))
@@ -386,29 +412,37 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
     }
 
     /**
-     * Wie [writeFile], aber ein abgebrochener Download wird fortgesetzt: Eine vorhandene "<name>.s2ptmp"
-     * wird weitergeschrieben, wenn [TransferPlan.resumeOffset] es erlaubt. [write] erhält den Ausgabestrom
-     * und die Startposition. Liefert Dokument-ID der fertigen Datei und die Startposition (0 = neu).
-     * Die Temp-Datei bleibt bei einem Abbruch liegen (wird nie synchronisiert, siehe FileFilter).
+     * Wie [writeFile], aber ein abgebrochener Download wird fortgesetzt (SYNC-20261114-333): Eine vorhandene "<name>.s2ptmp"
+     * wird nur weitergeschrieben, wenn [mayResume] es für ihre Grösse erlaubt (gespeicherte Identität der PC-Datei, kein
+     * Uhrenvergleich). [onFresh] läuft vor jedem Neubeginn (Identität der PC-Datei speichern), [verify] auf der fertigen
+     * Temp-Datei vor dem Umbenennen (Teil-Hash gegen die PC-Datei; false = verwerfen). [write] erhält den Ausgabestrom und die
+     * Startposition. Liefert Dokument-ID der fertigen Datei und die Startposition (0 = neu). Die Temp-Datei bleibt bei einem
+     * Abbruch liegen (wird nie synchronisiert, siehe FileFilter).
+     * [expectedLocal] = die Handy-Datei beim Einlesen (null = es gab keine, auch nach dem eigenen Papierkorb-Verschieben). Ist sie
+     * kurz vor dem Ersetzen (Liste neu gelesen) nicht mehr so -> [ChangedDuringRunException], Temp-Datei bleibt liegen.
      */
     fun writeFileResumable(
-        relPath: String, expectedSize: Long, remoteModified: Long,
-        /** Die Datei gab es beim Einlesen nicht: ist sie inzwischen entstanden -> [ChangedDuringRunException] */
-        expectNew: Boolean = false,
+        relPath: String, expectedSize: Long,
+        expectedLocal: LocalEntry?,
+        mayResume: (tmpSize: Long) -> Boolean,
+        onFresh: () -> Unit,
+        verify: ((tmpDocId: String, resumed: Boolean) -> Boolean)?,
         write: (OutputStream, Long) -> Unit,
     ): Pair<String, Long> {
         val parentRel = relPath.substringBeforeLast('/', "")
         val name = relPath.substringAfterLast('/')
         val parentId = ensureDir(parentRel)
         val siblings = children(parentId)
-        if (expectNew && siblings.any { !it.isDir && it.name.equals(name, ignoreCase = true) })
-            throw ChangedDuringRunException()
+        fun existing(list: List<LocalEntry>) = list.firstOrNull { !it.isDir && it.name.equals(name, ignoreCase = true) }
+        fun targetOk(list: List<LocalEntry>): Boolean =
+            TransferIntegrity.targetUnchanged(expectedLocal?.let { TransferIntegrity.stampOf(it) }, existing(list)?.let { TransferIntegrity.stampOf(it) })
+        if (!targetOk(siblings)) throw ChangedDuringRunException()
         var offset = 0L
         var tmpUri: Uri? = null
         val tmp = siblings.firstOrNull { !it.isDir && it.name == name + TEMP }
         if (tmp != null) {
-            offset = TransferPlan.resumeOffset(tmp.size, tmp.modified, expectedSize, remoteModified)
-            if (offset > 0) {
+            if (mayResume(tmp.size)) {
+                offset = tmp.size
                 tmpUri = docUri(tmp.docId)
             } else {
                 delete(tmp.docId)
@@ -421,6 +455,8 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
             if (out == null) { try { DocumentsContract.deleteDocument(resolver, tmpUri) } catch (ignored: Exception) {}; tmpUri = null; offset = 0 }
         }
         if (tmpUri == null) {
+            // Identität der PC-Datei dauerhaft merken, BEVOR die Temp-Datei entsteht (sonst gäbe es eine Temp-Datei ohne Eintrag)
+            onFresh()
             tmpUri = DocumentsContract.createDocument(resolver, docUri(parentId), "application/octet-stream", name + TEMP)
                 ?: throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_create, relPath))
             out = resolver.openOutputStream(tmpUri, "w") ?: throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_write))
@@ -434,14 +470,22 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
             throw e
         }
         // Grösse prüfen: Hat der Anbieter "anhängen" ignoriert, stimmt sie nicht -> verwerfen, nächstes Mal neu
-        val written = stat(DocumentsContract.getDocumentId(uri))?.size ?: -1
+        val tmpId = DocumentsContract.getDocumentId(uri)
+        val written = stat(tmpId)?.size ?: -1
         if (written != expectedSize) {
             try { DocumentsContract.deleteDocument(resolver, uri) } catch (ignored: Exception) {}
             throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_size, written, expectedSize))
         }
-        return replaceWith(uri, siblings, name, relPath) to offset
+        // Teil-Hash der Temp-Datei gegen die PC-Datei, vor dem Ersetzen (R-T1/R-T2): Mischdatei oder beschädigte Übertragung
+        if (verify != null && !verify(tmpId, offset > 0)) {
+            try { DocumentsContract.deleteDocument(resolver, uri) } catch (ignored: Exception) {}
+            throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_resume))
+        }
+        // Liste unmittelbar vor dem Ersetzen neu lesen: die Handy-Datei darf sich seit dem Einlesen nicht geändert haben (R-I5)
+        val fresh = children(parentId)
+        if (!targetOk(fresh)) throw ChangedDuringRunException()
+        return replaceWith(uri, fresh, name, relPath) to offset
     }
-
     fun rename(docId: String, newName: String): String {
         val uri = DocumentsContract.renameDocument(resolver, docUri(docId), newName)
             ?: throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_rename_short))
@@ -450,6 +494,29 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
 
     fun delete(docId: String) {
         DocumentsContract.deleteDocument(resolver, docUri(docId))
+    }
+
+    /**
+     * Benennt eine Datei oder einen Ordner um und/oder verschiebt ihn nach [toRel] (SYNC-20261114-340), **nie durch Kopieren**.
+     * null = der Anbieter kann es nicht; dann ist alles wie vorher (eine schon erfolgte Umbenennung wird zurückgenommen).
+     * Liefert die neue Dokument-ID.
+     */
+    fun relocate(fromRel: String, docId: String, toRel: String): String? {
+        val oldName = fromRel.substringAfterLast('/')
+        val newName = toRel.substringAfterLast('/')
+        val sourceParent = ensureDir(fromRel.substringBeforeLast('/', ""))
+        val targetParent = ensureDir(toRel.substringBeforeLast('/', ""))
+        var id = docId
+        if (oldName != newName) id = renameOrNull(id, newName) ?: return null
+        if (sourceParent != targetParent) {
+            val moved = moveOrNull(id, sourceParent, targetParent)
+            if (moved == null) {
+                if (oldName != newName) try { renameOrNull(id, oldName) } catch (ignored: Exception) {}
+                return null
+            }
+            id = moved
+        }
+        return id
     }
 
     /**
@@ -483,17 +550,38 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
         val existing = children(targetParent).map { it.name.lowercase() }.toSet()
         val name = TrashIndex.uniqueTrashName(entry.name, TrashIndex.timeNow()) { it.lowercase() in existing }
         var docId = entry.docId
-        if (name != entry.name) docId = rename(docId, name)
+        val renamedHere = name != entry.name
+        if (renamedHere) docId = rename(docId, name)
         try {
             DocumentsContract.moveDocument(resolver, docUri(docId), docUri(sourceParent), docUri(targetParent))
                 ?: throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_move))
         } catch (e: Exception) {
-            // Anbieter kann nicht verschieben -> kopieren + löschen
+            // Anbieter kann nicht verschieben -> kopieren + löschen. Das Original wird erst gelöscht, wenn die Kopie existiert und
+            // genau so gross ist (R-I7, -333); sonst Kopie entfernen und die Umbenennung am Quellort zurücknehmen.
             val target = "$trashDir/$name"
-            writeFile(target) { out -> openInput(docId).use { it.copyTo(out, 1 shl 16) } }
+            try {
+                copyChecked(target, docId, entry.size)
+            } catch (copyError: Exception) {
+                if (renamedHere) try { rename(docId, entry.name) } catch (ignored: Exception) {}
+                throw copyError
+            }
             delete(docId)
         }
         return "$trashDir/$name"
+    }
+
+    /**
+     * Kopiert [sourceDocId] nach [toRel] und prüft die Kopie (R-I7, -333): sie muss existieren und genau [expectedSize] Byte haben.
+     * Sonst wird die Kopie entfernt und eine Ausnahme geworfen; das Original bleibt unberührt. Liefert die Dokument-ID der Kopie.
+     */
+    private fun copyChecked(toRel: String, sourceDocId: String, expectedSize: Long): String {
+        val id = writeFile(toRel) { out -> openInput(sourceDocId).use { it.copyTo(out, 1 shl 16) } }
+        val size = try { stat(id)?.size } catch (e: Exception) { null }
+        if (!TransferIntegrity.copyIsComplete(size, expectedSize)) {
+            try { delete(id) } catch (ignored: Exception) {}
+            throw IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_size, size ?: -1L, expectedSize))
+        }
+        return id
     }
 
     private val noMediaDone = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -581,7 +669,7 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
                 ?.let { DocumentsContract.getDocumentId(it) }
         } catch (e: Exception) { null }
         if (moved == null) {
-            val id = writeFile(toRel) { out -> openInput(entry.docId).use { it.copyTo(out, 1 shl 16) } }
+            val id = copyChecked(toRel, entry.docId, entry.size)
             delete(entry.docId)
             return id
         }
@@ -691,6 +779,24 @@ class LocalTree(private val context: Context, val treeUri: Uri) : LocalFiles {
 
     private val TEMP = com.sync2pc.app.smb.SmbSession.TEMP_SUFFIX
     private val OLD = OLD_SUFFIX
+}
+
+/** Reine Regeln zu Namen und IDs des Dokumentanbieters (SYNC-20261115-374, JVM-getestet) */
+object ProviderNames {
+    /** Hat der Anbieter den verlangten Namen geändert («name (1).ext»)? Unbekannter Name = nein */
+    fun renamed(requested: String, actual: String?): Boolean = actual != null && !actual.equals(requested, ignoreCase = true)
+
+    /**
+     * Dokument-ID eines Kindes bei pfadbasierten IDs (`primary:Download/A` -> `primary:Download/A/name`, `raw:/…`); null bei
+     * Nummern-IDs (`msd:12`, `msf:12`), die keinen Pfad enthalten.
+     */
+    fun childIdByPath(parentId: String, name: String): String? {
+        val colon = parentId.indexOf(':')
+        if (colon <= 0 || name.isEmpty()) return null
+        val rest = parentId.substring(colon + 1)
+        if (rest.isNotEmpty() && rest.all { it.isDigit() }) return null
+        return if (rest.isEmpty() || parentId.endsWith("/")) parentId + name else "$parentId/$name"
+    }
 }
 
 /** Alte Version während des Ersetzens auf dem Handy (0.4.1), wird nie synchronisiert */

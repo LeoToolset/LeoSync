@@ -2,6 +2,250 @@
 
 Versionierung: Beta `0.1.x` (nur Fehlerbehebungen). Neue Funktionen eröffnen `0.2.x`, `0.3.x` usw. bis zur Freigabe von `1.0.0`. Bis 0.0.13: `0.0.x`. Neueste Version oben.
 
+## 0.20.13 (2026-11-16)
+
+### Behoben
+- **Akku-Tipp:** Der Knopf öffnet die App-Info von LeoSync (Rückfall: Liste der Akku-Optimierung); dort findet man die Akku-Einstellung auch auf Handys mit eigener Akkuverwaltung (z. B. OnePlus). Die Anleitung «So geht es» ist in den Einstellungen und auf der Tipp-Seite dieselbe und nennt die Herstellerhinweise.
+
+## 0.20.12 (2026-11-16)
+
+### Geändert
+- **Statuszeile:** Eine fehlende Pflichtberechtigung steht als «1 Einrichtungsproblem» in der Statuszeile (z. B. «1 Einrichtungsproblem · 1 Tipp»).
+
+## 0.20.11 (2026-11-16)
+
+### Behoben
+- **WLAN-Auslöser:** Der Auslöser wartet bis zu 6 Sekunden, bis das frisch verbundene WLAN als aktives Netz gemeldet wird, damit eine Fortsetzung auch nach dem Ruhezustand (Doze) zuverlässiger startet.
+
+## 0.20.10 (2026-11-16)
+
+### Intern
+- Zusätzliche Diagnose-Logzeilen zum Start von Läufen (keine Verhaltensänderung).
+
+## 0.20.9 (2026-11-16)
+
+### Behoben
+- **Sicherheitsnetz:** Wird die App im Hintergrund von Android beendet, setzt ein Wächter-Auftrag die Synchronisierung nach etwa 10 Minuten fort (jedes reguläre Ende nimmt ihn zurück). Ohne Vordergrund werden Fortschrittsmeldungen höchstens alle 5 Sekunden aktualisiert.
+
+## 0.20.8 (2026-11-16)
+
+### Neu
+- **Lauf ohne Vordergrund:** Läuft eine Synchronisierung im Hintergrund ohne Vordergrunddienst, steht das im Verlauf («Lief ohne Vordergrund …»); der Lauf gilt weiter nicht als Fehler. Die Akku-Tipp-Karte erscheint nach «Nicht jetzt» dann einmal erneut.
+
+### Behoben
+- **Pausiert-Anzeige:** Nach einem Zeitlimit von Android (bei vorhandenem Netz) steht «Pausiert – Wird fortgesetzt» statt «Wartet auf WLAN».
+
+## 0.20.7 (2026-11-16)
+
+### Behoben
+- **Galerie-Papierkorb:** Dateien `.trashed-*` werden nicht mehr übertragen; das Löschen in der Galerie wird als Löschung übernommen.
+- **Meldung «Wiederherstellung fehlgeschlagen»:** Sie erscheint zuverlässig.
+
+### Geändert
+- **Statuskarte:** Das Bild des Hundes bleibt auch bei grosser Schrift gross.
+
+## 0.20.6 (2026-11-16)
+
+### Behoben
+- **Fortsetzen nach Pause:** Der Lauf wartet bis zu 10 Sekunden auf das frisch verbundene WLAN, statt sofort ohne Synchronisierung zu enden.
+
+## 0.20.5 (2026-11-16)
+
+### Behoben
+- **Vordergrunddienst:** Ein automatischer Lauf fordert den Vordergrund sofort beim Start an, damit Android ihn im Hintergrund nicht mehr ablehnt.
+
+## 0.20.4 (2026-11-16)
+
+### Behoben
+- **Fortsetzen nach Pause:** Der Fortsetzen-Lauf (WLAN-Rückkehr) wird als beschleunigter Auftrag eingereiht, damit Android ihm im Hintergrund einen Vordergrunddienst erlaubt (ab Android 12 sonst abgelehnt). Gilt nicht für den um 15 Minuten verzögerten Auftrag und nicht beim Schalter «Nur beim Laden».
+
+## 0.20.3 (2026-11-15)
+
+### Behoben
+- **Fortsetzen nach Netzverlust:** Verliert ein automatischer Lauf mitten in der Übertragung das erlaubte Netz (WLAN und mobile Daten aus), wird der Unterbruch unmittelbar nach dem Stopp durch Android markiert (Pausiert-Anzeige, Fortsetzen bei Netz), höchstens einmal je Lauf; Benutzerabbruch und manuelle Läufe setzen keinen Pausenzustand.
+
+## 0.20.2 (2026-11-15)
+
+### Geändert
+- **Statusüberschrift:** «Wartet auf dich» und «Meldungen» erscheinen im Warnton (Amber), Fehler weiter rot. Tipp-Seiten der Sammelkachel ohne doppelten Vorsatz.
+
+## 0.20.1 (2026-11-15)
+
+### Geändert
+- **Meldungen:** Der Titel der Sammelkachel ist fest «Meldungen»; die Statusüberschrift lautet «Fehler» (Schutzbremse, Sicherheit, Benutzer muss handeln, fehlende Pflichtberechtigung), «Wartet auf dich» (Konflikt, Monatsordner, Löschbestätigung) oder «Meldungen» (vorübergehend). Konflikte sind kein Fehler mehr. Die Kachel färbt sich nach der höchsten Schwere (Stufen 1 bis 3 rötlich, 4 und 5 gelb, Tipps ungefärbt).
+- **Startseite:** Bei Schrift ab 1,5 mit sichtbarer Kachel zeigt die Statuskarte einen kleineren Hund. Vorgemerkte Löschungen und Wiederherstellungen stehen in der Statuskarte statt in den Werkzeugen. Profilkarten zeigen die Stufen 1 bis 3 als rote Textzeile. Die Statuszeile zählt Meldungen und Tipps getrennt. Die Import-Checkliste ist eine Seite der Kachel; «n Profile warten auf die erste Synchronisierung» mit «Jetzt starten» erscheint erst, wenn kein Ordner- oder Verbindungstest-Schritt mehr offen ist.
+- **Dialog «Mit diesem Laufwerk fortfahren»:** «Abbrechen» ist gefüllt und steht zuerst.
+
+## 0.20.0 (2026-11-15)
+
+### Neu
+- **Meldungen je Ursache:** Probleme erscheinen gesammelt in einer Blätterkachel «Meldungen» auf der Startseite, nach Ursache gruppiert (derselbe PC, dieselbe Freigabe, dasselbe Konto, das Gerät) statt je Profil. Jedes Profil behält seinen eigenen Zustand; die Gruppierung blendet keinen Fehler aus. «Erneut versuchen» wirkt nur auf die Profile der Gruppe; ein neues Passwort gilt je PC und Konto nach einem Anmeldeversuch für die gewählten Profile. «PC nicht erreichbar» erscheint erst nach 24 Stunden ohne erfolgreichen Lauf. Die Benachrichtigung ist eine Sammelmeldung je Lauf mit einer Zeile je Ursache.
+- **Startseite:** Neue Reihenfolge: Pflichtberechtigung, Statuskarte, Sammelkachel, Profile, Werkzeuge.
+## 0.19.13 (2026-11-15)
+
+### Behoben
+- **Statuskasten:** Bei offenem Konflikt und Pause «für immer» zeigt der Statuskasten jetzt auch die Zeile «Pausiert – nur manuell» (vorher zeigte nur das Kopfsymbol die Pause).
+
+## 0.19.12 (2026-11-15)
+
+### Geändert
+- **Startseite:** Die Karten sind nach Dringlichkeit geordnet: 1. Entscheidungen (Konflikte, Entscheidungen, Löschbestätigung, «Verschlüsselung/Signierung nicht verfügbar», «Anderes Laufwerk»), 2. «Einrichtung unvollständig», 3. Statuskasten, 4. Akku-Tipp-Karte unter dem Statuskasten.
+- **Statuskasten bei Pause:** «Pausiert bis 13:07 Uhr» statt «Bis 13:07 Uhr»; bei Pause für immer «Pausiert – nur manuell».
+
+## 0.19.11 (2026-11-15)
+
+### Neu
+- **Symbol:** Monochromes Launcher-Symbol für die Designfarben von Android 13 und neuer (alle Dichten).
+
+### Geändert
+- **Statusbilder:** `dog_wait`, `dog_idle`, `dog_pause` und `dog_attention` durch konturierte Fassungen ersetzt.
+- **Dialog «Weniger Schutz»:** «Abbrechen» ist die hervorgehobene Standardaktion, die riskante Aktion heisst «Schutz verringern» (auch beim Umstellen auf «Wenn möglich»).
+- **Einstellungen › App-Berechtigungen:** Der Akku erscheint nur noch in der Berechtigungszeile (Akku-Einstellungen, «So geht es» mit Hersteller-Hinweisen und Link); die Fotos-Zeile nur bei vorhandenem Fotos-Profil.
+- **Diagnose:** Der Hinweistext nennt keinen WLAN-Namen mehr (die Diagnosedaten enthalten keinen).
+- **Papierkorb-Ansicht:** Der Android-Systemordner `.thumbnails` wird ausgeblendet (nur die Anzeige).
+- **Startseite:** Die leere Startseite erwähnt kein WLAN mehr.
+
+### Behoben
+- **Sicherungstexte:** Ohne Export-Passwort enthält die Sicherungsdatei **keine** SMB-Passwörter (der Umzug-Hinweis nannte sie fälschlich lesbar); mit Export-Passwort sind sie verschlüsselt.
+
+## 0.19.10 (2026-11-15)
+
+### Geändert
+- **Pausendienst:** Ab Android 15 beendet sich der Pausendienst (Anzeige «Pausiert» nach einem WLAN-Unterbruch) nach 30 Minuten selbst, damit das gemeinsame Vordergrunddienst-Budget von 6 Stunden je 24 Stunden (Typ `dataSync`) nicht verbraucht wird. Danach bleibt die normale «Pausiert»-Benachrichtigung, das Fortsetzen erfolgt wie bisher automatisch. Ein Fortsetzen-Lauf im falschen WLAN startet den Dienst ab Android 15 nicht neu. Android 14 und älter bleiben unverändert.
+
+## 0.19.9 (2026-11-15)
+
+### Geändert
+- **Startseite:** Die rote Karte «Einrichtung unvollständig» erscheint nur noch bei fehlenden Pflichtpunkten (Medien, Benachrichtigungen). Eine fehlende Akku-Ausnahme zeigt eine neutrale Tipp-Karte; «Nicht jetzt» blendet sie dauerhaft aus (ein Merker je Installation), die Einstellungen zeigen dann «Zurückgestellt».
+- **Profilkarte:** Das WLAN-Symbol entfällt (die bekannten Netze bleiben im Profil).
+
+### Behoben
+- **Profileditor:** War das gespeicherte Passwort nicht lesbar und wird kein neues eingegeben, bleibt der alte Chiffretext erhalten; der Verbindungstest meldet «Passwort nicht lesbar», statt sich mit leerem Passwort anzumelden.
+- **Fotos-Profil:** Fotos und Videos dürfen in der Profilbearbeitung nicht beide aus sein (Hinweis unter den Schaltern, Speichern blockiert). Der Backup-Import setzt ein Fotos-Profil mit beiden aus auf beide an.
+
+## 0.19.8 (2026-11-15)
+
+### Behoben
+- **Handy-Ordner:** Ordner werden nicht mehr doppelt angelegt. Benennt der Dokumentanbieter einen neuen Ordner eigenmächtig um (z. B. «Testsync (1)»), wird er entfernt und der Lauf meldet den Fehler; bei pfadbasierten Anbietern wird ein nicht aufgelisteter Ordner direkt gefunden.
+- **Release-Build:** Ausnahmeklassen behalten ihre Namen, «Technische Details» zeigt wieder den lesbaren Fehler statt `un1`.
+- **Verschlüsselung «Erforderlich»:** Gegen einen PC ohne Verschlüsselung erscheint nach dem Speichern die Karte «Verschlüsselung nicht verfügbar» statt nur «PC nicht erkannt».
+
+## 0.19.7 (2026-11-15)
+
+- Zwischenstand ohne eigenen Dokumentationsauftrag (automatischer Build-Eintrag ersetzt; die Änderungen dieser Reihe stehen unter 0.19.6 und 0.19.8).
+
+## 0.19.6 (2026-11-15)
+
+### Sicherheit
+- **Antwortprüfung:** Korrektur der Härtung aus 0.19.4. Die Regel gilt jetzt je Verbindung statt je Sitzung: Ab der Anmeldung wird jedes eingehende Paket geprüft, auch mit SessionId 0 und fremder SessionId, und jeder Teil eines zusammengesetzten Pakets einzeln. Sie gilt bei allen Verschlüsselungsstufen.
+## 0.19.5 (2026-11-15)
+
+### Neu
+- **Konflikt-Dialog:** Bei Bildern und Videos zeigt jede Seite die Auflösung (bei Videos zusätzlich die Dauer). Die höhere Auflösung ist mit «grösser» beschriftet, aber nie vorausgewählt; ein Hinweis erklärt, dass Messenger Fotos oft verkleinern. Die Zeile entfällt, wenn sich der Wert nicht ermitteln lässt.
+
+### Geändert
+- **Datenbank:** Version 12 (Tabelle der Konflikte um Breite, Höhe und Dauer der PC-Datei erweitert; Migration 11 → 12).
+
+## 0.19.4 (2026-11-15)
+
+### Sicherheit
+- **Verschlüsselte Verbindungen:** LeoSync weist unverschlüsselte Antworten in verschlüsselt ausgehandelten Verbindungen ab (Härtung der Antwortprüfung; die Verbindung wird getrennt, der Lauf endet mit einem Fehler).
+- **Signierung:** Hat ein Server ohne Verschlüsselung die Verbindung einmal signiert, verlangt LeoSync die Signierung künftig. Lehnt der Server sie später ab, erscheint die Karte «Signierung nicht mehr verfügbar» mit der Aktion «Ohne Signierung erlauben».
+
+## 0.19.3 (2026-11-15)
+
+### Geändert
+- **Hilfe und Produktseite:** Der Link in der App führt jetzt auf `leotoolset.github.io/leosync`; der Link zur Verschlüsselungsanleitung öffnet den richtigen Abschnitt.
+- **Aufräumen:** Reste des früheren Selbst-Updates entfernt (nicht mehr benötigte Texte und Sonderbehandlung von Adressen in der Diagnose).
+
+## 0.19.2 (2026-11-15)
+
+### Neu
+- **Schutzkarten:** Karte «Verschlüsselung nicht verfügbar» (Stufe «Erforderlich») mit «Verbindung testen» und «Auf ‹Wenn möglich› stellen» (mit Bestätigung); auf der Profilkarte erscheint das Verschlüsselungssymbol rot mit Warnzeile, im Profil eine Meldung. Karte «Anderes Laufwerk erkannt» mit «Nicht synchronisieren» und «Ist das richtige Laufwerk – weiter» (mit Bestätigung). Auf der Startseite stehen höchstens drei Schutzkarten, der Rest als «n weitere».
+- **Verschlüsselung:** Einmalige Info im Profil nach der automatischen Umstellung auf «Erforderlich», Bestätigung «Weniger Schutz?» beim Herabsetzen und eine Erklärzeile unter der Stufenauswahl. Aufklappbares «Mehr dazu» zur Verschlüsselung.
+- **Nach dem Import:** Die Checkliste «Nach dem Import» auf der Startseite zeigt je Profil den nächsten Schritt (einklappbar, nicht wegwischbar).
+- **Umzug:** Auf der leeren Startseite fragt die Karte «Von der alten LeoSync-Version umziehen?» und führt durch den Export (mit Export-Passwort empfohlen) und den Import; die Sicherungsdatei ist danach zu löschen.
+- **Papierkorb:** Info-Hinweise zum Umzug auf `@LeoSync-Bin` und zum Rückfall des PCs auf `.LeoSync-Bin`.
+- **Fotos:** Einmaliger Tipp im Dialog «Wie weiter?» nach dem Assistenten: Speicherplatz erst nach einer Synchronisierung freigeben (Google Fotos kann Originale löschen, bevor sie gesichert sind).
+- **Über LeoSync:** Die Zeile «Updates kommen über Google Play».
+
+### Geändert
+- **Berechtigungen:** Die Einrichtungskarte zeigt nur Kernberechtigungen mit Kurzerklärungen (Benachrichtigungen, Fotos und Videos, Akku mit «So geht es»). «Standort in Fotos» wird erst bei der Wahl der Länderordner erfragt, mit einer Erklärung vor dem Systemdialog.
+- **Noch nicht umgesetzt (aus dem Design):** «Signierung abgelehnt» für Profile ohne Verschlüsselung (folgt mit 0.19.4), Aktion «Offene Wiederherstellungen» im Papierkorb-Hinweis, Verlaufseintrag «PC-Erkennung umgestellt» beim Import, Snackbar «Alle Profile bereit».
+
+## 0.19.1 (2026-11-15)
+
+### Neu
+- **Ordner-Sync:** LeoSync erkennt, wenn hinter der Freigabe ein anderes Laufwerk liegt (z. B. getauschte oder neu formatierte Festplatte), und hält das Profil an, bis du bestätigst, dass es das richtige Laufwerk ist. Der nächste Lauf prüft dann den PC-Ordner gegen den letzten Stand, bevor etwas kopiert oder gelöscht wird.
+
+## 0.19.0 (2026-11-15)
+
+### Neu
+- **Google Play:** LeoSync erscheint nur noch im Play Store (neue App-ID `ch.leo.sync`). Daten kommen per Export/Import in die neue App.
+- **Bekannte Netze:** LeoSync merkt sich je Profil die WLANs, in denen dein PC erkannt wurde. In einem unbekannten WLAN versucht LeoSync den PC nur kurz zu erreichen und schont so den Akku; ändert sich das Netz, lernt LeoSync es still neu (Verlaufseintrag). Im Profil siehst du die Anzahl und kannst sie vergessen.
+
+### Geändert
+- **PC-Erkennung:** Der PC wird nur noch an seiner Kennung erkannt (in jedem WLAN und über VPN). Die Liste der WLAN-Namen und die Auswahl der Erkennungsart entfallen; Sicherungen mit WLAN-Namen werden als «Nur PC-Kennung» eingelesen.
+- **Berechtigungen:** LeoSync braucht keine Standort-Berechtigung mehr (nur noch «Standort in Fotos lesen» für die Länderordner). Die Akku-Einstellung öffnet die Liste der Akku-Optimierung.
+- **Kein Selbst-Update:** Aktualisierungen kommen über Google Play; Update-Seite, Update-Benachrichtigung und die Installationsberechtigung entfallen.
+- **Build:** Der Builder erzeugt ein AAB, eine signierte APK und eine Debug-APK.
+
+## 0.18.0 (2026-11-15)
+
+### Neu
+- **Ordner-Sync:** Umbenennen und Verschieben werden erkannt (Einzeldateien und ganze Ordner), statt als Löschen plus Neuanlegen zu laufen. Das gilt nur mit «Löschungen übernehmen»; ohne diese Einstellung bleiben beim Umbenennen beide Namen auf beiden Seiten. Ein Paar wird nur bei gleicher Grösse und gleicher Änderungszeit wie im letzten Stand erkannt, danach prüft LeoSync den Inhalt. Fehler lassen das Paar unberührt; kann der Speicherort des Handys nichts verschieben, wird die Erkennung für das Profil abgeschaltet (es wird nie kopiert). Erkannte Paare zählen nicht zur Schutzbremse. Verlauf und Simulation nennen «umbenannt/verschoben: alt → neu».
+
+## 0.17.7 (2026-11-15)
+
+### Neu
+- **Verschlüsselung:** Steht ein Profil auf «Wenn möglich» und die Verbindung ist tatsächlich verschlüsselt, stellt LeoSync es einmalig auf «Erforderlich» um (Verlaufseintrag). Änderst du die Stufe danach selbst, bleibt das endgültig; «Aus» wird nie automatisch geändert.
+
+## 0.17.6 (2026-11-15)
+
+### Geändert
+- **Mobile Daten/VPN:** Im Roaming startet kein automatischer Lauf über mobile Daten oder VPN (Hinweis «Roaming» im Verlauf). WLAN und der Start von Hand bleiben unverändert.
+
+## 0.17.5 (2026-11-15)
+
+### Sicherheit
+- **Gespeicherte Passwörter:** Lässt sich das Passwort nicht entschlüsseln, meldet LeoSync das vor der Anmeldung und meldet sich nie mit leerem Passwort an; ist der Schlüssel nur vorübergehend nicht verfügbar, wird später erneut versucht.
+- **Gast- und anonyme Sitzungen** werden bei konfiguriertem Benutzer abgelehnt.
+- **Schutzbremse und Neustart:** Verbrauch und Änderungen der Einmal-Freigaben werden sofort gespeichert; der Empfänger für den Neustart nimmt nur noch den Start des Geräts und das Update der App an; bei einem Zeitlimit des Pause-Dienstes erscheint die normale «Pausiert»-Anzeige.
+
+### Geändert
+- **Folgeläufe:** Ein leerer Folgelauf sperrt weitere Folgeläufe allein wegen geänderter Ordnerstempel für 6 Stunden; neue Arbeit oder übersprungene Dateien heben das auf.
+
+## 0.17.4 (2026-11-15)
+
+### Behoben
+- **Übertragungsintegrität (Ordner-Sync):** Ein unterbrochener Download wird nur fortgesetzt, wenn die gespeicherte Identität der PC-Datei (Grösse und Zeit) passt; die Teil-Prüfsumme wird vor dem Umbenennen nach jedem Fortsetzen und bei Dateien ab 4 MiB geprüft (beide Richtungen). Das Ziel wird unmittelbar vor dem Ersetzen erneut geprüft; «Beide behalten» ersetzt keine neu entstandene Handy-Datei mehr. Die Papierkorb-Kopie prüft die Grösse, bevor das Original gelöscht wird (sonst wird die Umbenennung zurückgenommen), und «In den Papierkorb» prüft vorher den Einlesestand. Eine Konfliktentscheidung gilt nur für die entschiedenen Versionen, sonst wird der Konflikt neu geöffnet.
+- **Änderung schlägt Löschung** (nur Richtung beidseitig mit «Löschungen übernehmen»): Wurde eine Datei auf einer Seite gelöscht und auf der anderen geändert, wird sie übertragen statt in den Papierkorb zu gehen (Verlaufseintrag, zählt nicht zur Schutzbremse).
+
+### Neu
+- **Windows-unzulässige Namen:** Dateien, deren Name Windows nicht erlaubt (Zeichen, Punkt oder Leerzeichen am Ende, reservierte Namen), werden nicht hochgeladen, sondern mit Hinweis übersprungen (kein Fehler); Namenskollisionen durch Gross-/Kleinschreibung oder Unicode-Form werden gemeldet.
+- **Speicherorte ohne Änderungszeit:** Einmaliger Hinweis je Profil und Ordner, wenn der Speicherort keine Änderungszeiten liefert (mindestens 90 % von mindestens 5 Dateien).
+
+## 0.17.3 (2026-11-15)
+
+### Geändert
+- **App-Symbol:** Neues Launcher-Symbol (Leo im Sync-Ring, Variante A): Die Vordergrund-Ebenen sind in allen Dichten ersetzt, der Hintergrund bleibt `#3B6EA8`.
+- **Intern:** Die Planung des Folgelaufs nach verschobenen Dateien wurde aus `SyncWorker` nach `SyncScheduler.planSkipFollowUp` herausgelöst (nur zur Testbarkeit, Verhalten unverändert).
+## 0.17.2 (2026-11-13)
+
+### Behoben
+- **Einstellungen (Übertragung):** Bei sehr grosser Schrift überlappt der Hinweis zur Option «Auch über mobile Daten oder VPN synchronisieren» nicht mehr das Feld «Mindestalter für Fotos».
+
+## 0.17.1 (2026-11-13)
+
+### Geändert
+- **Einstellungen (Übertragung):** Das Prüfintervall der Ordner-Profile heisst kürzer «Ordner-Profile: Prüfintervall (Minuten)», ein Hinweistext nennt einheitlich «Prüfung der Ordner-Profile», und unter «Mehr dazu» ist mehr Abstand zum nächsten Feld.
+
+## 0.17.0 (2026-11-13)
+
+### Geändert
+- **Fotos:** Nach einer Fotoserie läuft nur noch ein Nachhol-Lauf, sobald das neuste Foto das Mindestalter erreicht hat (statt einer je Foto); das spart Akku und vermeidet viele Verlaufseinträge.
+- **Ordner-Profile:** Das Prüfintervall «Auf Änderungen prüfen» ist jetzt eine globale Einstellung unter Übertragung (bisher je Profil, wirksam war ohnehin das kürzeste). Beim Update übernimmt die App das kürzeste bisherige Intervall.
+
 ## 0.16.47 (2026-11-13)
 
 ### Geändert

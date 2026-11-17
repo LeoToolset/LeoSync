@@ -12,6 +12,12 @@ import com.sync2pc.app.sync.SyncScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** Einträge, die die Papierkorb-Ansicht nicht zeigt: Android-Systemordner `.thumbnails` (SYNC-20261115-392); nur Anzeigefilter */
+object TrashSystemEntries {
+    fun hidden(origPath: String): Boolean =
+        FileFilter.inSystemFolder(origPath)
+}
+
 /**
  * "Papierkorb & alte Versionen" (0.5.0): Papierkorb beider Seiten einlesen und Wiederherstellungen vormerken.
  * Ausgeführt werden sie vom nächsten Ordner-Sync mit erreichbarem PC (MirrorEngine.runRestores) – so blockiert
@@ -50,7 +56,8 @@ object RestoreManager {
         // Grösse für die Kachel "Papierkorb" merken (0.6.0)
         PurgeStore(context).saveSizes(profile.id, local.sumOf { it.size }, if (pcOk) remote.sumOf { it.size } else -1)
         Loaded(
-            (local + remote).sortedWith(compareBy<TrashEntry>({ it.origPath.lowercase() }).thenByDescending { it.date }),
+            // Systemordner (.thumbnails) nur nicht anzeigen, nichts wird gelöscht (SYNC-20261115-392)
+            (local + remote).filterNot { TrashSystemEntries.hidden(it.origPath) }.sortedWith(compareBy<TrashEntry>({ it.origPath.lowercase() }).thenByDescending { it.date }),
             pcOk, existing, TrashPurge.reservedKeys(dao.pendingRestores(profile.id)), pcMessage,
         )
     }
@@ -117,6 +124,10 @@ object RestoreRetryPolicy {
         return (entries.filterNot { it.substringBefore(':') == id } + "$id:$now").toSet() to now
     }
 
+    /** Profil-IDs (Teil vor dem Doppelpunkt) der Einträge "profilId:restoreId", beschränkt auf [profileIds] (SYNC-20261115-420) */
+    fun failedProfileIds(entries: Set<String>, profileIds: Collection<Long>): List<Long> =
+        entries.mapNotNull { it.substringBefore(':').toLongOrNull() }.filter { it in profileIds }.distinct()
+
     fun count(entries: Set<String>, restoreId: Long): Int =
         entries.firstOrNull { it.substringBefore(':') == restoreId.toString() }?.substringAfter(':')?.toIntOrNull() ?: 0
 }
@@ -164,6 +175,9 @@ class RestoreFailures(context: Context) {
         val p = e.substringBefore(':').toLongOrNull()
         if (p != null && p in profileIds) e.substringAfter(':').toLongOrNull() else null
     }
+
+    /** Profil-IDs (nicht Wiederherstellungs-IDs) der fehlgeschlagenen Wiederherstellungen der gegebenen Profile */
+    fun failedProfileIds(profileIds: Collection<Long>): List<Long> = RestoreRetryPolicy.failedProfileIds(all(), profileIds)
 
     /** Profile mit fehlgeschlagener Wiederherstellung */
     fun profiles(): Set<Long> = all().mapNotNull { it.substringBefore(':').toLongOrNull() }.toSet()

@@ -91,13 +91,18 @@ import com.sync2pc.app.mirror.MirrorGuard
 import com.sync2pc.app.mirror.PurgeStore
 import com.sync2pc.app.mirror.RestoreFailures
 import com.sync2pc.app.mirror.RestoreManager
+import com.sync2pc.app.sync.CollectedItems
 import com.sync2pc.app.sync.Notifications
+import com.sync2pc.app.sync.ProblemFactory
+import com.sync2pc.app.sync.ProblemGrouping
+import com.sync2pc.app.sync.ProblemGroup
+import com.sync2pc.app.sync.ProblemKind
+import com.sync2pc.app.sync.ProblemStore
 import com.sync2pc.app.sync.SyncProgress
 import com.sync2pc.app.sync.StartResult
 import com.sync2pc.app.sync.SyncScheduler
 import com.sync2pc.app.sync.SyncWorker
 import com.sync2pc.app.sync.WifiHelper
-import com.sync2pc.app.update.UpdateChecker
 import kotlinx.coroutines.flow.combine
 
 /** Erhöht sich bei jedem onResume -> Berechtigungen/WLAN neu einlesen */
@@ -144,11 +149,9 @@ fun HomeScreen(
     val ctx = LocalContext.current
     val dao = remember { AppDatabase.get(ctx).dao() }
     val tick = rememberResumeTick()
-    // B5: WLAN-Name auch bei Netzwechsel neu lesen (nicht nur beim Zurückkehren in die App)
+    // B5: Netz auch bei Netzwechsel neu lesen (nicht nur beim Zurückkehren in die App)
     val netTick = rememberNetworkTick()
     val perms = remember(tick) { PermStatus.read(ctx) }
-    val ssid = remember(tick, netTick) { WifiHelper.currentSsid(ctx) }
-    val update = remember(tick) { UpdateChecker.stored(ctx) }
 
     val allProfiles by remember { dao.profilesFlow() }.collectAsState(initial = emptyList())
     // 0.11.0: ein Profil, das gerade gelöscht wird (Rückgängig noch möglich), ist ausgeblendet
@@ -190,9 +193,9 @@ fun HomeScreen(
     val queued = enqueued.any { it.nextScheduleTimeMillis <= now + 5_000 }
     val nextPlanned = enqueued.map { it.nextScheduleTimeMillis }.filter { it in (now + 5_001) until Long.MAX_VALUE }.minOrNull()
     // Warum wartet ein fälliger Auftrag? (WLAN fehlt / nicht am Ladegerät / startet gleich)
-    val waitText = remember(tick, workKey, ssid, profiles) {
+    val waitText = remember(tick, netTick, workKey, profiles) {
         val s = settings
-        val onTarget = ssid != null && profiles.any { it.enabled && it.ssids().contains(ssid) }
+        val onTarget = WifiHelper.onAllowedNetwork(ctx)
         val charging = ctx.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true
         when {
             !onTarget -> str(R.string.home_wait_wifi)
@@ -245,6 +248,28 @@ fun HomeScreen(
         GuardStore(ctx).all().filter { it.profileId in ids }
     }
     LaunchedEffect(guards.isEmpty()) { if (guards.isEmpty()) Notifications.cancelGuard(ctx) }
+    // SYNC-20261115-352: Profile, deren Verschlüsselung abgelehnt wurde (Stufe «Erforderlich»): eine Karte je Profil
+    val encRejected = remember(tick, workKey, guardVersion, profiles) {
+        profiles.filter { it.enabled && com.sync2pc.app.smb.EncryptionAuto.isRejected(ctx, it) }
+    }
+    // SYNC-20261115-353: Zeilen der Import-Checkliste (importierte Ordner-Profile, die noch nie erfolgreich liefen)
+    val importRows = remember(tick, workKey, guardVersion, profiles, awaitingStart) {
+        profiles.filter { it.enabled && it.id in awaitingStart && it.type() == com.sync2pc.app.data.ProfileType.MIRROR }.map { p ->
+            val lost = p.localTreeUri.isBlank() ||
+                !com.sync2pc.app.mirror.LocalTree.hasPermission(ctx, android.net.Uri.parse(p.localTreeUri))
+            val known = com.sync2pc.app.sync.PcIdentity.storedFor(
+                p.pcGuid, p.pcGuidHost, com.sync2pc.app.smb.SmbTarget.hostOf(p.smbPath).orEmpty()) != null
+            ChecklistRow(p.id, p.name.trim(), nextChecklistStep(lost, known))
+        }
+    }
+    // Höchstens drei Schutzkarten sichtbar, der Rest als «n weitere»
+    val signRejected = remember(tick, workKey, guardVersion, profiles) {
+        profiles.filter { it.enabled && com.sync2pc.app.smb.SigningStatus.isRejected(ctx, it) }
+    }
+    val guardsShown = guards.take(MAX_PROTECT_CARDS)
+    val encShown = encRejected.take((MAX_PROTECT_CARDS - guardsShown.size).coerceAtLeast(0))
+    val signShown = signRejected.take((MAX_PROTECT_CARDS - guardsShown.size - encShown.size).coerceAtLeast(0))
+    val protectHidden = guards.size + encRejected.size + signRejected.size - guardsShown.size - encShown.size - signShown.size
     // Papierkorb (0.6.0): zuletzt gemessene Grösse und vorgemerktes Leeren auf dem PC
     val trashSizeText = remember(tick, workKey, profiles) {
         val store = PurgeStore(ctx)
@@ -289,35 +314,85 @@ fun HomeScreen(
         } else null
     }
 
+    // Einmaliger Tipp (0.11.0); weg nach dem ersten Herunterziehen oder nach Antippen
+    var pullTipDone by remember { mutableStateOf(settings.pullTipDone) }
+    fun finishPullTip() { if (!pullTipDone) { settings.pullTipDone = true; pullTipDone = true } }
+    // SYNC-20261115-409: Meldungen je Ursache (gespeicherte Einträge plus abgeleitete aus den bestehenden Quellen), gruppiert und sortiert
+    val needs = PermNeeds.of(profiles)
+    val storedProblems = remember(tick, workKey, guardVersion, profiles) { ProblemStore(ctx).all() }
+    val phoneLost = remember(tick, workKey, guardVersion, profiles) {
+        profiles.filter { it.enabled && it.type() == com.sync2pc.app.data.ProfileType.MIRROR && it.localTreeUri.isNotBlank() &&
+            !com.sync2pc.app.mirror.LocalTree.hasPermission(ctx, android.net.Uri.parse(it.localTreeUri)) }
+    }
+    val restoreFailedIds = remember(tick, workKey, profiles, pendingRestores, restoreFailVersion) {
+        // SYNC-20261115-420: Profil-IDs (nicht Wiederherstellungs-IDs), sonst fand profileById sie nur bei zufälliger Gleichheit
+        RestoreFailures(ctx).failedProfileIds(profiles.map { it.id })
+    }
+    val activeNames = profiles.filter { it.enabled }.associate { it.id to it.name.trim() }
+    val profileById = profiles.associateBy { it.id }
+    val lastOk by produceState(emptyMap<Long, Long?>(), profiles, workKey) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { profiles.associate { it.id to dao.lastSuccessAt(it.id) } }
+    }
+    val derivedProblems = buildList {
+        for (g in guards) profileById[g.profileId]?.let { add(ProblemFactory.of(it, ProblemKind.GUARD, g.kind.name)) }
+        for (p in encRejected) add(ProblemFactory.of(p, ProblemKind.ENC_REFUSED))
+        for (p in signRejected) add(ProblemFactory.of(p, ProblemKind.SIGN_REFUSED))
+        for (p in phoneLost) add(ProblemFactory.of(p, ProblemKind.PHONE_FOLDER_LOST))
+        for (id in restoreFailedIds) profileById[id]?.let { add(ProblemFactory.of(it, ProblemKind.RESTORE_FAILED)) }
+    }
+    val pcLabels = profiles.associate { p ->
+        val host = com.sync2pc.app.smb.SmbTarget.hostOf(p.smbPath).orEmpty()
+        ProblemGrouping.pcKeyOf(p.pcGuid, host) to host
+    }
+    val groups = ProblemGrouping.group(
+        storedProblems + derivedProblems, activeNames, lastOk,
+        CollectedItems(conflicts = conflicts.size, monthFolders = decisions.size, deleteConfirm = deleteCount), System.currentTimeMillis(), pcLabels,
+    )
+    val permMissing = perms.missing(needs)
+    // Profilkarten: höchste Stufe 1 bis 3 je Profil als rote Textzeile (SYNC-20261115-416 F)
+    val profileProblem = groups.filter { it.level <= 3 }.flatMap { g -> g.profiles.map { it.id to g } }
+        .groupBy({ it.first }, { it.second }).mapValues { (_, gs) -> gs.minByOrNull { it.level }!!.kind }
+    // SYNC-20261115-416 A: Fehler = Stufen 1 bis 3 (Konflikte nicht mehr), Wartet auf dich = Stufe 4, Meldungen = Stufe 5
+    val errorCount = groups.count { it.kind.isError } + (if (permMissing) 1 else 0)
+    val waitingCount = groups.count { it.level == 4 }
+    val messageCount = groups.count { it.level == 5 }
+    val batteryTip = BatteryTip.visible(ctx, perms, needs)
+    val pages = remember(groups, batteryTip, pullTipDone, profiles.isNotEmpty(), importRows) {
+        groups.map<ProblemGroup, HomePage> { HomePage.Problem(it) } +
+            listOfNotNull(
+                HomePage.Checklist(importRows).takeIf { importRows.isNotEmpty() },
+                HomePage.BatteryTip.takeIf { batteryTip },
+                HomePage.PullTip.takeIf { !pullTipDone && profiles.isNotEmpty() },
+            )
+    }
+
     // Gesamtzustand für die Statuskarte (SYNC-20261110-113): Verbindung, Profile, offene Entscheidungen
     val activeProfiles = profiles.filter { it.enabled && it.isConfigured() }
     val onAllowedNet = remember(tick, netTick, workKey) { WifiHelper.onAllowedNetwork(ctx) }
-    val offWifiActive = remember(tick, netTick, workKey) { WifiHelper.offWifiSyncActive(ctx) }
     val noConnection = HomeStatus.noConnection(
         activeProfiles.size,
-        anyCanRunNow = activeProfiles.any { HomeStatus.profileCanRunNow(it.pcMode(), it.ssids(), ssid, onAllowedNet, offWifiActive) },
+        anyCanRunNow = activeProfiles.any { HomeStatus.profileCanRunNow(onAllowedNet) },
         pcUnreachable = shareWait != null,
     )
     // Offene Entscheidungen: Konflikte, Ordnerzuordnung, Schutzbremse, Löschbestätigung
-    val attentionCount = conflicts.size + decisions.size + guards.size + (if (deleteCount > 0) 1 else 0)
+    val attentionCount = groups.size
     val lastRunErrors = lastRun?.takeIf { it.status == RunStatus.FAILED || it.failed > 0 }?.failed ?: -1
-    val locationMissing = PermNeeds.of(profiles).wifi && !perms.location
     val headline = HomeStatus.headline(HomeStatusInput(
         isRunning = running != null,
         hasProfiles = profiles.isNotEmpty(),
         hasActiveProfile = activeProfiles.isNotEmpty(),
-        attentionCount = attentionCount,
+        attentionCount = waitingCount,
+        errorCount = errorCount,
+        messageCount = messageCount,
         noConnection = noConnection,
         userPaused = userPausedUntil > 0,
         wifiPaused = paused,
-        lastRunHadErrors = lastRunErrors >= 0,
+        lastRunHadErrors = false, // Fehler je Profil kommen über die Meldungen (ProblemStore), nicht mehr über den global letzten Lauf
         // "Alles aktuell": letzter Lauf ohne Probleme und nichts mehr offen
         allUpToDate = lastRun?.status == RunStatus.OK && !queued && skipInfo == null &&
-            decisions.isEmpty() && conflicts.isEmpty() && deleteCount == 0 && guards.isEmpty() &&
-            pendingFiles == 0,
+            groups.isEmpty() && pendingFiles == 0,
         pendingFiles = pendingFiles,
         // R4: ohne Standort-Berechtigung ist der WLAN-Name nicht lesbar (automatische Synchronisierung still gestört)
-        locationMissing = locationMissing,
         // B2: ein aktives Profil, das noch nie erfolgreich gestartet wurde, ist nicht «gesichert»
         awaitingFirstStart = activeProfiles.any { it.id in awaitingStart },
         // B1: der letzte Start wurde nicht ausgeführt (PC nicht erreichbar/erkannt, WLAN) -> nicht «Bereit»
@@ -333,8 +408,14 @@ fun HomeScreen(
             })
         }
     }
-    val attentionText = if (conflicts.isNotEmpty()) plural(R.plurals.home_status_conflict_detail, conflicts.size)
-        else str(R.string.home_status_attention_detail)
+    // SYNC-20261115-416 G: Meldungen und Tipps getrennt zählen (die Kachel zählt beide)
+    val tipCount = pages.size - groups.size
+    // SYNC-20261116-444: fehlende Pflichtberechtigung (zählt zu «Fehler») in der Zeile nennen, sonst fehlt die Ursache der Überschrift
+    val attentionText = listOfNotNull(
+        plural(R.plurals.msg_setup_count, 1, 1).takeIf { permMissing },
+        plural(R.plurals.msg_status_count, groups.size, groups.size).takeIf { groups.isNotEmpty() },
+        plural(R.plurals.msg_tip_count, tipCount, tipCount).takeIf { tipCount > 0 },
+    ).joinToString(" · ")
 
     // -146 Teil A: Start während eines laufenden Syncs wird nachgeholt; beim manuellen Start sofort sagen, dass er vorgemerkt ist
     val deferred by remember { SyncScheduler.deferredState(ctx) }.collectAsState()
@@ -359,13 +440,48 @@ fun HomeScreen(
     }
     // Herunterziehen (0.10.0): Kreis kurz zeigen, danach übernimmt die Statuskachel
     var pullRefreshing by remember { mutableStateOf(false) }
-    // Einmaliger Tipp (0.11.0); weg nach dem ersten Herunterziehen oder nach Antippen
-    var pullTipDone by remember { mutableStateOf(settings.pullTipDone) }
-    fun finishPullTip() { if (!pullTipDone) { settings.pullTipDone = true; pullTipDone = true } }
     LaunchedEffect(pullRefreshing, running != null) {
         if (pullRefreshing) { if (running == null) delay(1_500); pullRefreshing = false }
     }
 
+    // SYNC-20261115-409/-407: Aktionen der Sammelkachel
+    var pwGroup by remember { mutableStateOf<ProblemGroup?>(null) }
+    var pwBusy by remember { mutableStateOf(false) }
+    var pwError by remember { mutableStateOf<String?>(null) }
+    var lowerAsk by remember { mutableStateOf<Pair<ProblemKind, Long>?>(null) }
+    val retryingIds = works.filter { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
+        .flatMap { SyncScheduler.retryingIds(it.tags) }.toSet()
+    val restoreText = if (failedRestores > exhaustedRestores) plural(R.plurals.home_restore_failed_text, failedRestores - exhaustedRestores)
+        else if (exhaustedRestores > 0) plural(R.plurals.home_restore_gaveup_text, exhaustedRestores) else ""
+    val collectedTexts = mapOf(
+        ProblemKind.CONFLICTS to (plural(R.plurals.home_conflicts_text, conflicts.size) to str(R.string.home_conflicts_button)),
+        ProblemKind.MONTH_FOLDERS to decisions.sumOf { it.fileCount }.let { files ->
+            plural(R.plurals.home_decisions_text, files, files, plural(R.plurals.home_groups, decisions.size)) to str(R.string.home_decisions_button)
+        },
+        ProblemKind.DELETE_CONFIRM to (plural(R.plurals.home_delete_text, deleteCount) to str(R.string.home_delete_button)),
+    )
+    val messageEnv = MessageEnv(
+        guardFor = { id -> guards.firstOrNull { it.profileId == id } },
+        collectedText = { collectedTexts[it] },
+        retrying = retryingIds,
+        restoreText = restoreText,
+        actions = MessageActions(
+            retry = { ids -> SyncScheduler.enqueueManualFor(ctx, ids); pauseVersion++ },
+            openProfile = { id -> navigate(Screen.ProfileEdit(id)) },
+            enterPassword = { g -> pwError = null; pwGroup = g },
+            openConflicts = { navigate(Screen.Conflicts) },
+            openDecisions = { navigate(Screen.Decisions) },
+            confirmDeletes = onConfirmDeletes,
+            lowerProtection = { kind, id -> lowerAsk = kind to id },
+            restoreRetry = { RestoreManager.retryFailed(ctx, profiles.map { it.id }); restoreFailVersion++; pauseVersion++ },
+            restoreDiscard = { scope.launch { RestoreManager.discardFailed(ctx, profiles.map { it.id }); restoreFailVersion++ } },
+            guardChoice = { id, choice -> scope.launch { MirrorGuard.resolve(ctx, id, choice); guardVersion++ } },
+            dismissBatteryTip = { BatteryTip.skip(ctx); guardVersion++ },
+            dismissPullTip = { finishPullTip() },
+            startAll = { SyncScheduler.enqueueManual(ctx); pauseVersion++ },
+            checklistRow = { row -> navigate(Screen.ProfileEdit(row.profileId)) },
+        ),
+    )
     ScreenScaffold(
         title = "LeoSync",
         onBack = null,
@@ -386,8 +502,7 @@ fun HomeScreen(
                     SettingsSection.entries.forEach { sec ->
                         DropdownMenuItem(text = { Text(str(sec.title)) }, onClick = {
                             settingsMenu = false
-                            // "Updates" öffnet direkt die Update-Seite (prüft sofort)
-                            navigate(if (sec == SettingsSection.UPDATES) Screen.Update else Screen.Settings(sec))
+                            navigate(Screen.Settings(sec))
                         })
                     }
                     // 0.11.0: Hilfe & Produktseite im Browser
@@ -414,40 +529,11 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 0.11.0: nur fragen, was vorhandene Profile brauchen (ohne Profil gar nichts)
-            val needs = PermNeeds.of(profiles)
+            // SYNC-20261115-407: Reihenfolge: Pflichtberechtigung, Statuskarte, Sammelkachel «Meldungen», Profile, Tools
             if (perms.missing(needs)) item { PermissionCard(perms, needs) }
-
-            // A8: Karten, die eine Entscheidung verlangen, stehen über der Statuskarte (bei Systemschrift 2,0 ohne Scrollen erreichbar)
-            if (conflicts.isNotEmpty()) item {
-                ActionCard(
-                    title = str(R.string.home_conflicts_title),
-                    text = plural(R.plurals.home_conflicts_text, conflicts.size),
-                    button = str(R.string.home_conflicts_button),
-                    onClick = { navigate(Screen.Conflicts) },
-                )
-            }
-            if (decisions.isNotEmpty()) item {
-                val files = decisions.sumOf { it.fileCount }
-                ActionCard(
-                    title = str(R.string.home_decisions_title),
-                    text = plural(R.plurals.home_decisions_text, files, files, plural(R.plurals.home_groups, decisions.size)),
-                    button = str(R.string.home_decisions_button),
-                    onClick = { navigate(Screen.Decisions) },
-                )
-            }
-            if (deleteCount > 0) item {
-                ActionCard(
-                    title = str(R.string.home_delete_title),
-                    text = plural(R.plurals.home_delete_text, deleteCount),
-                    button = str(R.string.home_delete_button),
-                    onClick = onConfirmDeletes,
-                )
-            }
 
             item {
                 StatusCard(
-                    ssid = ssid,
                     isRunning = running != null,
                     isQueued = queued,
                     waitText = waitText,
@@ -466,45 +552,24 @@ fun HomeScreen(
                     lastRunErrors = lastRunErrors.coerceAtLeast(0),
                     pendingFiles = pendingFiles,
                     waitingFiles = waitingFiles,
-                    locationMissing = locationMissing,
-                    onOpenPermissions = { navigate(Screen.Settings(SettingsSection.PERMISSIONS)) },
+                                onOpenPermissions = { navigate(Screen.Settings(SettingsSection.PERMISSIONS)) },
                     onSync = startSync,
                     onCancel = { SyncScheduler.cancelAll(ctx) },
                     onResume = { SyncScheduler.resume(ctx); pauseVersion++ },
                     onOpenLog = { navigate(Screen.Log) },
                     hasProfiles = profiles.isNotEmpty(),
+                    // SYNC-20261115-421 (Benutzerwunsch): Hund bei grosser Schrift nicht mehr verkleinern (früher ab Schrift 1,5, -416 D)
+                    compact = false,
+                    pendingLines = buildList {
+                        if (pendingPurges > 0) add(str(R.string.home_purge_pending_title) + (guardNote(purgeProfilesPending)?.let { " · $it" } ?: ""))
+                        if (pendingRestores > failedRestores) add(plural(R.plurals.home_restore_pending_text, pendingRestores - failedRestores) + (guardNote(restoreProfilesPending)?.let { " · $it" } ?: ""))
+                    },
                     etaText = etaText,
                     runHint = if (running != null && deferred.requested)
                         str(if (deferred.manual) R.string.home_next_all else R.string.home_next_auto) else null,
                 )
             }
-            if (!pullTipDone && profiles.isNotEmpty()) item {
-                Text(
-                    str(R.string.home_pull_tip), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().clickable { finishPullTip() }.padding(horizontal = 8.dp),
-                )
-            }
-
-            items(guards, key = { "guard-${it.profileId}" }) { g ->
-                val profile = profiles.firstOrNull { it.id == g.profileId }
-                GuardCard(
-                    g, profile?.name ?: str(R.string.home_profile_fallback),
-                    onChooseFolder = { navigate(Screen.ProfileEdit(g.profileId)) },
-                    onChoice = { choice ->
-                        scope.launch { MirrorGuard.resolve(ctx, g.profileId, choice); guardVersion++ }
-                    },
-                )
-            }
-
-            if (update != null) item {
-                ActionCard(
-                    title = str(R.string.home_update_title),
-                    text = str(R.string.home_update_text, update.version, UpdateChecker.currentVersion()),
-                    button = str(R.string.home_update_button),
-                    onClick = { navigate(Screen.Update) },
-                )
-            }
+            if (pages.isNotEmpty()) item(key = "messages") { MessagesCard(pages, env = messageEnv) }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(str(R.string.home_profiles), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -519,8 +584,12 @@ fun HomeScreen(
                     Button(onClick = { navigate(Screen.ProfileEdit(0)) }) { Text(str(R.string.home_first_profile)) }
                 }
             }
+            // SYNC-20261115-354: Umzug von der alten App (com.sync2pc.app) über Sicherung/Import
+            if (profiles.isEmpty()) item(key = "move-old") {
+                MoveFromOldCard(onStart = { navigate(Screen.Settings(SettingsSection.APP)) }, onFresh = { navigate(Screen.ProfileEdit(0)) })
+            }
             items(profiles, key = { it.id }) { p ->
-                ProfileCard(p, ssid, awaitingFirstStart = p.id in awaitingStart) { navigate(Screen.ProfileEdit(p.id)) }
+                ProfileCard(p, awaitingFirstStart = p.id in awaitingStart, problem = profileProblem[p.id]) { navigate(Screen.ProfileEdit(p.id)) }
             }
             // Tools (0.6.3): immer sichtbar; ohne passendes Profil ausgegraut, Tippen zeigt einen Hinweis
             val canFree = freeProfiles(profiles).isNotEmpty()
@@ -540,54 +609,6 @@ fun HomeScreen(
             )
             run {
                 item { Text(str(R.string.home_tools), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
-                if (pendingPurges > 0) item {
-                    val note = guardNote(purgeProfilesPending)
-                    ActionCard(
-                        title = str(R.string.home_purge_pending_title),
-                        text = str(R.string.home_purge_pending_text) +
-                            (note?.let { "\n$it" } ?: ""),
-                        button = str(R.string.common_sync_now),
-                        onClick = { enqueueManualWithFeedback(); pauseVersion++ },
-                    )
-                }
-                if (failedRestores > 0) item {
-                    // 0.7.0: zurückgerollt, Vormerkung bleibt – erneut versuchen oder verwerfen
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(str(R.string.home_restore_failed_title), style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold)
-                            if (failedRestores > exhaustedRestores)
-                                Text(plural(R.plurals.home_restore_failed_text, failedRestores - exhaustedRestores))
-                            if (exhaustedRestores > 0)
-                                Text(plural(R.plurals.home_restore_gaveup_text, exhaustedRestores))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = {
-                                    RestoreManager.retryFailed(ctx, profiles.map { it.id })
-                                    restoreFailVersion++; pauseVersion++
-                                }) { Text(str(R.string.home_retry)) }
-                                OutlinedButton(onClick = {
-                                    scope.launch {
-                                        RestoreManager.discardFailed(ctx, profiles.map { it.id })
-                                        restoreFailVersion++
-                                    }
-                                }) { Text(str(R.string.home_discard)) }
-                            }
-                        }
-                    }
-                }
-                if (pendingRestores > failedRestores) item {
-                    val note = guardNote(restoreProfilesPending)
-                    ActionCard(
-                        title = str(R.string.home_restore_pending_title),
-                        text = plural(R.plurals.home_restore_pending_text, pendingRestores - failedRestores) +
-                            (note?.let { "\n$it" } ?: ""),
-                        button = str(R.string.common_sync_now),
-                        onClick = { enqueueManualWithFeedback(); pauseVersion++ },
-                    )
-                }
                 // Ein Tool pro Zeile (0.6.1)
                 items(tools, key = { "tool-" + it.id }) { t -> ToolCard(t, Modifier.fillMaxWidth()) }
             }
@@ -604,6 +625,54 @@ fun HomeScreen(
         }
     }
 
+    // «Passwort neu eingeben» einmal je PC und Konto: zuerst ein Profil testen, erst bei Erfolg die übrigen speichern (Kontosperre vermeiden)
+    pwGroup?.let { g ->
+        val pwFailed = str(R.string.msg_pw_failed)
+        PasswordGroupDialog(
+            group = g, busy = pwBusy, error = pwError,
+            onDismiss = { pwGroup = null },
+            onConfirm = { password, selectedIds ->
+                pwBusy = true; pwError = null
+                scope.launch {
+                    val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val chosen = dao.profiles().filter { it.id in selectedIds }
+                        val enc = com.sync2pc.app.data.CredentialCrypto.encrypt(password)
+                        val first = chosen.firstOrNull()?.copy(smbPasswordEnc = enc) ?: return@withContext false
+                        try {
+                            com.sync2pc.app.smb.SmbSession.testDetailed(first, learnNetOk = false, onChangedGuid = { _, _, _ -> false })
+                            for (p in chosen) dao.updateProfile(p.copy(smbPasswordEnc = enc))
+                            true
+                        } catch (e: Exception) { false }
+                    }
+                    pwBusy = false
+                    if (ok) {
+                        pwGroup = null
+                        SyncScheduler.enqueueManualFor(ctx, selectedIds); pauseVersion++
+                        snackbar.showSnackbar(str(R.string.msg_pw_done))
+                    } else pwError = pwFailed
+                }
+            },
+        )
+    }
+    lowerAsk?.let { (kind, id) ->
+        val sign = kind == ProblemKind.SIGN_REFUSED
+        AlertDialog(
+            onDismissRequest = { lowerAsk = null },
+            title = { DialogTitleText(str(if (sign) R.string.sign_allow_title else R.string.prot_less_title)) },
+            text = { Text(str(if (sign) R.string.sign_allow_text else R.string.prot_less_text)) },
+            confirmButton = {
+                SafeFirstButtons(str(R.string.prot_cancel), str(if (sign) R.string.sign_allow_ok else R.string.prot_less_ok), { lowerAsk = null }) {
+                    lowerAsk = null
+                    scope.launch {
+                        if (sign) com.sync2pc.app.smb.SigningStatus.allow(ctx, id)
+                        else com.sync2pc.app.smb.EncryptionAuto.lowerToPreferred(ctx, id)
+                        guardVersion++
+                        SyncScheduler.enqueueManualFor(ctx, setOf(id))
+                    }
+                }
+            },
+        )
+    }
     if (showChargeWarning) ChargeWarningDialog(
         onStart = { showChargeWarning = false; enqueueManualWithFeedback(); pauseVersion++ },
         onDismiss = { showChargeWarning = false },

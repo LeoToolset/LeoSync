@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.sync2pc.app.data.AppDatabase
 import com.sync2pc.app.data.GlobalSettings
-import com.sync2pc.app.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -15,25 +14,30 @@ class WifiNetworkReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val ctx = context.applicationContext
         val s = GlobalSettings(ctx)
+        // SYNC-20261116-440: Diagnose, damit ein ausbleibender Start nachweisbar ist (Receiver nicht aufgerufen / früh verlassen)
+        android.util.Log.i("WifiReceiver", "WLAN-Broadcast: autoSyncOnWifi=${s.autoSyncOnWifi}, manualOnly=${s.manualOnly}, resumeOnWifi=${s.resumeOnWifi}")
         if (!s.autoSyncOnWifi || s.manualOnly) return // "für immer pausiert": nur manuell
         val now = System.currentTimeMillis()
         // Drosselung gegen Mehrfach-Events – aber nie nach einem unterbrochenen Sync (sofort fortsetzen)
-        if (SyncDecisions.wifiTriggerThrottled(s.resumeOnWifi, now, s.lastWifiTriggerAt)) return
+        if (SyncDecisions.wifiTriggerThrottled(s.resumeOnWifi, now, s.lastWifiTriggerAt)) { android.util.Log.i("WifiReceiver", "gedrosselt"); return }
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (!WifiHelper.isOnWifi(ctx)) return@launch
-                val ssid = WifiHelper.currentSsid(ctx)
+                // SYNC-20261116-440: Der Broadcast kommt, sobald das WLAN verfügbar ist; activeNetwork zeigt es oft erst kurz danach
+                // (wie -430). Früher verliess der Receiver hier stumm, und im Doze, wo der Auftrag des Aufgabenplaners zurückgehalten
+                // wird, blieb der Fortsetzen-Start aus. Bis 6 s warten (goAsync-Fenster), dann erst aufgeben.
+                var waited = 0L
+                while (!WifiHelper.isOnWifi(ctx) && waited < 6_000) { kotlinx.coroutines.delay(300); waited += 300 }
+                if (!WifiHelper.isOnWifi(ctx)) { android.util.Log.i("WifiReceiver", "kein WLAN aktiv, ignoriert"); return@launch }
+                android.util.Log.i("WifiReceiver", "WLAN aktiv (nach ${waited} ms), Start wird eingereiht")
                 val profiles = AppDatabase.get(ctx).dao().profiles().filter { it.enabled }
-                // SSID nicht lesbar -> trotzdem einplanen, der Worker prüft erneut
-                // PC-Erkennung GUID: jedes WLAN passt (kein Name nötig)
-                val match = profiles.any { NetworkRules.wifiTriggerMatches(it.pcMode(), ssid, it.ssids(), unreadableMatches = true) }
-                if (match) {
+                // Jedes WLAN löst aus (SYNC-20261115-351); der Lauf entscheidet über bekannte Netze und die PC-Kennung
+                if (profiles.isNotEmpty()) {
                     s.lastWifiTriggerAt = now
                     // Neue WLAN-Verbindung -> PC sofort prüfen, eine laufende 30-Minuten-Wartezeit verfällt
                     s.shareRetryAt = 0; s.shareUnreachable = ""
                     val label = com.sync2pc.app.l10n.Msg.of(if (s.resumeOnWifi) com.sync2pc.app.R.string.trigger_resume else com.sync2pc.app.R.string.trigger_wifi)
-                    SyncScheduler.enqueueAuto(ctx, ssid?.let { com.sync2pc.app.l10n.Msg.join("", listOf(label, com.sync2pc.app.l10n.Msg.lit(" ($it)"))) } ?: label)
+                    SyncScheduler.enqueueAuto(ctx, label)
                 }
             } finally {
                 pending.finish()
@@ -42,25 +46,13 @@ class WifiNetworkReceiver : BroadcastReceiver() {
     }
 }
 
-/** Nach Neustart/Update: WLAN-Callback und Trigger neu registrieren; nach Selbst-Update App wieder öffnen. */
+/** Nach Neustart/App-Aktualisierung (Google Play): WLAN-Callback und Trigger neu registrieren. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Nur die zwei erwarteten System-Broadcasts verarbeiten (R-BG8, -334); alles andere sofort verlassen
+        val action = intent.action
+        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         val ctx = context.applicationContext
         SyncScheduler.setupAll(ctx)
-        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            val s = GlobalSettings(ctx)
-            val version = s.updateInstalling
-            if (version.isNotEmpty()) {
-                s.updateInstalling = ""
-                s.updateVersion = ""
-                // Android erlaubt den Start aus dem Hintergrund nicht immer -> zusätzlich Benachrichtigung
-                try {
-                    ctx.startActivity(
-                        Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                } catch (ignored: Exception) {}
-                Notifications.updateInstalled(ctx, version)
-            }
-        }
     }
 }

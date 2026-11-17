@@ -13,7 +13,7 @@
     <string name="common_details_hide">Details ausblenden</string>
     <string name="home_profile_deleted">Profil „%1$s“ gelöscht</string>
     <string name="home_undo">Rückgängig</string>
-    <string name="home_pull_tip">Tipp: Ganz oben nach unten ziehen startet ebenfalls eine Synchronisierung.</string>
+    <string name="home_pull_tip">Ganz oben nach unten ziehen startet ebenfalls eine Synchronisierung.</string>
     <string name="home_eta">noch ca. %1$s</string>
     <string name="home_eta_calculating">Restzeit wird berechnet …</string>
     <plurals name="eta_minutes">
@@ -37,9 +37,6 @@
     <string name="home_cd_log">Verlauf</string>
     <string name="home_cd_settings">Einstellungen</string>
     <string name="home_profile_fallback">Profil</string>
-    <string name="home_update_title">Update verfügbar</string>
-    <string name="home_update_text">Version %1$s ist verfügbar (installiert: %2$s).</string>
-    <string name="home_update_button">Ansehen</string>
     <string name="home_conflicts_title">Konflikte bei der Ordner-Synchronisierung</string>
     <plurals name="home_conflicts_text">
         <item quantity="one">%1$s Datei wurde auf Handy und PC geändert. Wähle, welche Version gilt.</item>
@@ -64,7 +61,7 @@
     <string name="home_delete_button">Entfernen bestätigen</string>
     <string name="home_profiles">Profile</string>
     <string name="home_add_profile">Profil hinzufügen</string>
-    <string name="home_no_profile">Noch kein Profil. Lege ein Profil mit Ziel-Freigabe, WLAN und Quellordnern an.</string>
+    <string name="home_no_profile">Noch kein Profil. Lege ein Profil mit Ziel-Freigabe und Quellordnern an.</string>
     <string name="home_first_profile">Erstes Profil anlegen</string>
     <string name="home_tool_free">Speicher freigeben</string>
     <string name="home_tool_free_text">Alte, auf dem PC gesicherte Dateien vom Handy entfernen</string>
@@ -101,14 +98,13 @@
     <string name="home_pause_choose">Wähle eine Dauer.</string>
     <string name="home_status">Status</string>
     <string name="home_all_saved">✓ Alles gesichert und aktuell</string>
-    <string name="home_wifi">WLAN: %1$s</string>
     <string name="home_wifi_none">nicht verbunden / nicht lesbar</string>
     <string name="home_progress">%1$s: %2$s / %3$s Dateien – %4$s von %5$s</string>
     <string name="home_running">Synchronisierung läuft…</string>
-    <string name="home_manual_only">Nur manuell synchronisieren.</string>
+    <string name="home_manual_only">Pausiert – nur manuell</string>
     <string name="home_manual_only_hint">Es wird nur synchronisiert, wenn du „Synchronisieren“ tippst. ▶ oben rechts schaltet die Automatik wieder ein.</string>
     <string name="home_last_sync">Letzte Synchronisierung: %1$s (%2$s)</string>
-    <string name="home_paused_until">Bis %1$s.</string>
+    <string name="home_paused_until">Pausiert bis %1$s</string>
     <string name="home_paused_until_hint">Automatische Synchronisierungen ruhen bis dahin. „Fortsetzen“ oder „Synchronisieren“ beendet die Pause sofort.</string>
     <string name="home_paused_wifi">Wartet auf das Heim-WLAN.</string>
     <string name="home_paused_wifi_hint">Die Synchronisierung wurde durch einen WLAN-Unterbruch angehalten und läuft automatisch weiter, sobald das WLAN wieder verbunden ist.</string>
@@ -125,7 +121,6 @@
         <item quantity="one">%1$s Datei wurde während des Laufs geändert und folgt mit der nächsten Prüfung.</item>
         <item quantity="other">%1$s Dateien wurden während des Laufs geändert und folgen mit der nächsten Prüfung.</item>
     </plurals>
-    <string name="home_location_missing">⚠ Standort-Berechtigung fehlt – der WLAN-Name ist nicht lesbar.</string>
     <string name="home_profile_access_lost">⚠ Handy-Ordner: Zugriff verloren – tippen und neu wählen</string>
     <string name="home_no_sync_yet">Noch keine Synchronisierung durchgeführt.</string>
     <string name="home_no_success_yet">Noch keine erfolgreiche Synchronisierung.</string>
@@ -161,13 +156,11 @@
     <string name="home_sync_feedback_wifi">Kein passendes WLAN – versuche es trotzdem</string>
     <string name="home_sync_feedback_pc">PC nicht erreichbar – prüfe erneut</string>
     <string name="home_profile_disabled">deaktiviert</string>
-    <string name="icon_on_wifi">Im WLAN</string>
     <string name="home_profile_no_target">Kein Ziel festgelegt</string>
     <string name="home_profile_no_local">kein Handy-Ordner</string>
     <string name="home_profile_propagate">Löschungen übernehmen</string>
     <string name="home_profile_sources">Quellen: %1$s</string>
     <string name="home_profile_none">keine</string>
-    <string name="home_profile_no_wifi">keines – nur manuelle Synchronisierung</string>
     <string name="home_profile_counts">%1$d gesichert · %2$d offen</string>
     <plurals name="home_profile_mirror_synced">
         <item quantity="one">%1$s Datei synchronisiert</item>
@@ -191,6 +184,10 @@
     <string name="guard_reset_hint">„Neu anlegen“ gleicht alles neu ab, ohne etwas zu löschen. Bis du entscheidest, ruht nur dieses Profil.</string>
     <string name="guard_keep">Nicht löschen</string>
     <string name="guard_delete_anyway">Trotzdem in den Papierkorb</string>
+    <string name="guard_title_volume">Anderes Laufwerk erkannt</string>
+    <string name="guard_text_volume">Hinter der Freigabe von „%1$s“ liegt ein anderes Laufwerk als bisher. Mögliche Ursachen: Festplatte oder NAS getauscht, Laufwerk neu formatiert oder ein anderes Gerät antwortet unter derselben Adresse. Es wurde nichts verändert. Bis du entscheidest, bleibt das Profil angehalten.</string>
+    <string name="guard_volume_continue">Ist das richtige Laufwerk – weiter</string>
+    <string name="guard_volume_hint">Der nächste Lauf prüft zuerst den PC-Ordner gegen den letzten Sync-Stand, bevor etwas kopiert oder gelöscht wird.</string>
     <string name="guard_keep_hint">„Nicht löschen“ behält die Dateien bzw. stellt sie auf der anderen Seite wieder her.</string>
     <string name="guard_choose_other">Anderen Ordner wählen</string>
     <string name="guard_accept">Trotzdem übernehmen</string>
@@ -201,15 +198,10 @@
     <string name="perm_grant">Erteilen</string>
     <string name="perm_granted">✓ erledigt</string>
     <string name="perm_open">Öffnen</string>
-    <string name="perm_turn_on">Einschalten</string>
     <string name="perm_media">Zugriff auf Fotos &amp; Videos</string>
     <string name="perm_media_location">Standort in Fotos lesen (für Länderordner)</string>
     <string name="perm_notifications">Benachrichtigungen (Fortschritt)</string>
-    <string name="perm_location">Standort (Android braucht ihn, um den WLAN-Namen zu lesen)</string>
-    <string name="perm_location_always">Standort „Immer zulassen“ (WLAN-Erkennung im Hintergrund)</string>
-    <string name="perm_location_off">Standortdienst ist ausgeschaltet</string>
-    <string name="perm_location_service">Standortdienst eingeschaltet</string>
-    <string name="perm_battery">Akku-Optimierung deaktivieren (zuverlässige Hintergrund-Synchronisierung)</string>
+    <string name="perm_battery">Akku: LeoSync in der Liste auf „Nicht optimieren“ stellen (zuverlässige Hintergrund-Synchronisierung)</string>
     <!-- Nachlauf (SYNC-20261111-146 Teil A) -->
     <string name="home_sync_deferred_snack">Wird nach der laufenden Synchronisierung gestartet.</string>
     <string name="home_next_all">Danach: alle Profile</string>

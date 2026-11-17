@@ -1,7 +1,7 @@
 # Datenmodell – LeoSync (Sync2PC)
 
 Technische Referenz der **aktuell implementierten** persistenten Datenstrukturen.
-Stand: Quellcode, App-Version 0.15.0 (`version.properties`; Änderungen bis 0.16.3 nachgeführt: Datenbankversion 11 und `sync_runs.deferred` ab 0.16.0, DEC-238), **Room-Datenbankversion 11** (neu: `sync_runs.deferred`, 3.9, 10; v10: `smbEncryption`, DEC-222, 3.1; v9: `folderLayout`, DEC-209, 3.1, 10, 11.2; v8: `pcCheck`, `pcGuid`, `pcGuidHost`; Stand der übrigen Abschnitte: s. u.). Abschnitte 3.9, 3.10, 10, 12.4, 14 und 17 sind auf 0.12.x nachgeführt (Verlauf mit Kennungen); die übrigen Abschnitte wurden zuletzt mit 0.11.0 abgeglichen.
+Stand: Quellcode, App-Version 0.15.0 (`version.properties`; **Nachtrag 0.19.5: Room-Datenbankversion 12**, `mirror_conflicts` um `remoteWidth`, `remoteHeight`, `remoteDurationMs` erweitert, Migration 11 → 12, siehe Abschnitt Migrationen; Änderungen bis 0.16.3 nachgeführt: Datenbankversion 11 und `sync_runs.deferred` ab 0.16.0, DEC-238), **Room-Datenbankversion 11** (neu: `sync_runs.deferred`, 3.9, 10; v10: `smbEncryption`, DEC-222, 3.1; v9: `folderLayout`, DEC-209, 3.1, 10, 11.2; v8: `pcCheck`, `pcGuid`, `pcGuidHost`; Stand der übrigen Abschnitte: s. u.). Abschnitte 3.9, 3.10, 10, 12.4, 14 und 17 sind auf 0.12.x nachgeführt (Verlauf mit Kennungen); die übrigen Abschnitte wurden zuletzt mit 0.11.0 abgeglichen.
 Der Quellcode ist massgeblich; `docs/DECISIONS.md` liefert Hintergründe (DEC-IDs). Geplantes steht nur in Abschnitt 17 und ist dort als solches gekennzeichnet.
 
 > **Hinweis zu Dateinamen:** Massgeblich sind die Dateien mit Bindestrich: `docs/DATA-MODEL.md` (diese Datei) und `docs/SYNC-ENGINE.md` (Sync-Abläufe).
@@ -100,12 +100,12 @@ Konvention: Kotlin `Long`/`Int`/`Boolean` → SQLite `INTEGER`, `String` → `TE
 | `conflictMode` | TEXT | nein | `"ASK"` | | `ConflictMode` (v2) |
 | `includePatterns` | TEXT | nein | `""` | | Einschlussmuster (`*.pdf`), leer = alles (v2) |
 | `excludePatterns` | TEXT | nein | `""` | | Ausschlussmuster (v2) |
-| `remotePollMinutes` | INTEGER | nein | `60` | | MIRROR: Prüfintervall im WLAN in Minuten (v2) |
+| `remotePollMinutes` | INTEGER | nein | `60` | | MIRROR: Prüfintervall im WLAN in Minuten (v2). **Seit 0.17.0 (DEC-272)** nur noch Altlast: das Intervall ist global (`GlobalSettings.folderCheckMinutes`); die Spalte wird nur für den Startwert beim Update/bei älterer Sicherung gelesen (kürzestes bisheriges Profilintervall), keine Migration |
 | `trashRetentionDays` | INTEGER | nein | `30` | | MIRROR: Papierkorb-Frist in Tagen, `0` = nie leeren (v3) |
 | `massDeletePercent` | INTEGER | nein | `20` | | MIRROR: Schwelle der Schutzbremse in Prozent (v4) |
 | `keepVersions` | INTEGER | nein | `true` | | MIRROR: Versionsschutz – überschriebene Version in den Papierkorb (v5) |
 | `verifyLevel` | INTEGER | nein | `2` | | `VerifyLevel.code` 0–4, Standard MEDIUM (v6) |
-| `pcCheck` | TEXT | nein | `"WIFI"` | | PC-Erkennung (DEC-204): `WIFI` (nur WLAN-Name) / `GUID` (nur PC-Kennung) / `BOTH` (beides). Abgeleitet: `Profile.pcMode()` (`PcCheckMode.parse`, unbekannt oder leer → `WIFI`) (v8, 0.13.0) |
+| `pcCheck` | TEXT | nein | `"WIFI"` | | PC-Erkennung (DEC-204): `WIFI` (nur WLAN-Name) / `GUID` (nur PC-Kennung) / `BOTH` (beides). Abgeleitet: `Profile.pcMode()` (`PcCheckMode.parse`, unbekannt oder leer → `WIFI`) (v8, 0.13.0). **Umgesetzt in 0.19.0 (DEC-287, SYNC-20261115-351):** `PcCheckMode.parse` ergibt immer `GUID`, `Profile.pcMode()` immer `GUID`; die Enum-Werte `WIFI`/`BOTH` bleiben nur für alte Sicherungen, der Import speichert sie als `GUID`. Die Spalten `pcCheck` und `wifiSsids` bleiben im Schema (kein Migrationsschritt; `wifiSsids` wird ignoriert, Altzeilen mit `WIFI` behalten den Text). Bekannte Netze liegen nicht in der Datenbank, sondern in SharedPreferences `known_nets` (siehe SYNC-ENGINE.md 6.0) |
 | `pcGuid` | TEXT | nein | `""` | | Gelernte PC-Kennung (SMB-Server-GUID, kleingeschrieben); leer = unbekannt (v8) |
 | `pcGuidHost` | TEXT | nein | `""` | | Host (kleingeschrieben), zu dem `pcGuid` gelernt wurde; die Kennung gilt nur für diesen Host (`PcIdentity.storedFor`) (v8) |
 | `folderLayout` | TEXT | nein | `"MONTH_SUFFIX"` | | Ordnerstruktur auf dem PC, nur Fotoprofile (DEC-209): `MONTH_SUFFIX` (V1 `Jahr\MM[ - Land]`, Standard) / `COUNTRY_FOLDER` (V2 `Jahr\[Land\]MM`) / `COUNTRY_SUBFOLDER` (V3 `Jahr\MM\[Land]`). Abgeleitet: `Profile.layout()` (`FolderLayout.of`, unbekannt oder leer → V1). Die Codes dürfen sich nie ändern. Ab der ersten Synchronisierung gesperrt: `SyncDao.updateProfile` übernimmt dann immer den gespeicherten Wert (`FolderLayoutGuard`) (v9, 0.14.3) |
@@ -227,6 +227,9 @@ Konvention: Kotlin `Long`/`Int`/`Boolean` → SQLite `INTEGER`, `String` → `TE
 | `remoteModified` | INTEGER | nein | – | | Änderungszeit PC |
 | `detectedAt` | INTEGER | nein | – | | Zeitpunkt der Erkennung (ms) |
 | `resolution` | TEXT | **ja** | `null` | | `null` = offen; sonst `ConflictResolution`: `LOCAL`, `REMOTE`, `BOTH` |
+| `remoteWidth` | INTEGER | **ja** | `NULL` | | seit DB v12 (0.19.5, DEC-291): Breite der PC-Datei in Pixel (nur Bild/Video, `MirrorEngine.probeRemote`); `NULL` = unbekannt |
+| `remoteHeight` | INTEGER | **ja** | `NULL` | | seit DB v12: Höhe der PC-Datei in Pixel; `NULL` = unbekannt |
+| `remoteDurationMs` | INTEGER | **ja** | `NULL` | | seit DB v12: Dauer der PC-Datei in ms (nur Video); `NULL` = unbekannt. Ein Fehlversuch beim Lesen wird als `0` gespeichert und nicht wiederholt |
 
 **Besonderheiten:** Der Engine-Abgleich der Konflikt-Schlüssel erfolgt über `relPath.lowercase()`, der PK selbst ist aber **case-sensitiv** (SQLite-Standard-Collation BINARY). Zwei Zeilen, die sich nur in der Gross-/Kleinschreibung unterscheiden, wären als PK zulässig; in der Praxis entsteht pro Pfad nur eine (gleiche Schreibweise aus der Ordnerliste) – nicht durch die DB erzwungen. Nicht in der Sicherung.
 
@@ -754,6 +757,7 @@ Legende: **DB** = von SQLite/Room erzwungen · **App** = durch Anwendungscode ab
 | **7 → 8** | 0.13.0 | `profiles` + `pcCheck TEXT NOT NULL DEFAULT 'WIFI'`, `pcGuid TEXT NOT NULL DEFAULT ''`, `pcGuidHost TEXT NOT NULL DEFAULT ''` | keine | Bestehende Profile bleiben bei der WLAN-Prüfung (DEC-204) |
 | **8 → 9** | 0.14.3 | `profiles.folderLayout TEXT NOT NULL DEFAULT 'MONTH_SUFFIX'` | keine | Bestehende Profile behalten Struktur V1, Verhalten unverändert (DEC-209, DEC-084); Migration am Emulator mit echten Daten (0.13.14 → 0.14.3) erfolgreich (QA SYNC-20261109-088) |
 | **9 → 10** | 0.15.0 | `profiles.smbEncryption TEXT NOT NULL DEFAULT 'PREFERRED'` | keine | Bestehende Profile erhalten «Wenn möglich» (DEC-222); Schema `10.json`; `MigrationTest` 9→10 ergänzt, laut Development (SYNC-20261111-142 bis -144) **nicht ausgeführt** |
+| **11 → 12** | 0.19.5 | `mirror_conflicts` + `remoteWidth INTEGER`, `remoteHeight INTEGER`, `remoteDurationMs INTEGER` (alle nullbar, kein DEFAULT) | keine | `MIGRATION_11_12` nur `ADD COLUMN`; Schema `12.json`; `MigrationTest` ergänzt (androidTest), laut Development kompiliert, nicht ausgeführt (SYNC-20261115-367) |
 | **10 → 11** | 0.16.0 | `sync_runs.deferred INTEGER NOT NULL DEFAULT 0` | keine | Bestehende Läufe haben `0` (DEC-238); `MigrationTest` 10→11 geschrieben, laut Development (SYNC-20261111-173) **nicht ausgeführt** (nur als androidTest); Schema `11.json` entsteht beim nächsten Build |
 
 Versionsangaben aus den KDoc-Kommentaren der Migrationen und DEC-084/-172; die Zuordnung `1.json`-Inhalt zu „0.0.x“ ist aus dem Quellcode **nicht** belegt (Git-Historie liegt nicht vor; das Projekt ist kein Git-Repository). **Dies ist eine offene Frage.**
@@ -778,6 +782,7 @@ timeline
     v9 (0.14.3) : folderLayout
     v10 (0.15.0) : smbEncryption
     v11 (0.16.0) : sync_runs.deferred
+    v12 (0.19.5) : mirror_conflicts.remoteWidth, remoteHeight, remoteDurationMs
 ```
 
 ---
@@ -810,7 +815,7 @@ Format `leosync-backup`, `VERSION = 1`. Inhalt: `settings`, `profiles` (+ option
 
 | Datei | Schlüssel (Auswahl) | Inhalt |
 |---|---|---|
-| `global` (`GlobalSettings`) | `autoSyncOnWifi`, `syncOnNewMedia`, `onlyWhileCharging`, `minFileAgeMinutes`, `homeCountryIso`, `parallelUploads` (1–4), `notifySummary/Update/Hints`, `autoUpdateCheck`, `update*`, `shareRetryAt`, `deferredStart` (Nachlauf-Merker, 0.15.0, DEC-221; mit `commit()` geschrieben; Schreibfehler seit 0.16.0 nur im Diagnose-Log, DEC-236), `lastSkipFollowUpAt` (Zeitstempel des letzten Folgelaufs nach übersprungenen Dateien, 0.16.0, DEC-238), `encNotified` (Menge der Profile, für die «Verschlüsselung nicht verfügbar» schon gemeldet wurde, 0.16.0, DEC-237), `shareUnreachable`, `resumeOnWifi`, `resumeSince`, `remotePollMinutes`, `lastSkipInfo/At`, `awaitingFirstStart` (Menge), `previewLimit`, `logFilterErrors/Transfers`, `pausedUntil`, `manualOnly`, `staleWarn*`, `staleBaseline`, `freeSpaceMonths`, `freeSpaceKeepFavorites`, `deviceId`, `lastWifiTriggerAt`, `pullTipDone`, `syncOffWifi` (Bool, Standard aus, seit 0.11.5, DEC-126) | Anwendungseinstellungen und Gerätezustand. `exportable()`/`importFrom` begrenzen, was gesichert wird (14 Schlüssel, ab 0.11.5 zusätzlich `syncOffWifi`; ältere Sicherungen ohne den Schlüssel bleiben gültig – laut Development, Anzahl nicht nachgezählt) |
+| `global` (`GlobalSettings`) | `autoSyncOnWifi`, `syncOnNewMedia`, `onlyWhileCharging`, `minFileAgeMinutes`, `homeCountryIso`, `parallelUploads` (1–4), `notifySummary/Update/Hints`, `autoUpdateCheck`, `update*`, `shareRetryAt`, `deferredStart` (Nachlauf-Merker, 0.15.0, DEC-221; mit `commit()` geschrieben; Schreibfehler seit 0.16.0 nur im Diagnose-Log, DEC-236), `lastSkipFollowUpAt` (Zeitstempel des letzten Folgelaufs nach übersprungenen Dateien, 0.16.0, DEC-238), `encNotified` (Menge der Profile, für die «Verschlüsselung nicht verfügbar» schon gemeldet wurde, 0.16.0, DEC-237), `shareUnreachable`, `resumeOnWifi`, `resumeSince`, `remotePollMinutes`, `folderCheckMinutes` (seit 0.17.0, DEC-272: globales Prüfintervall der Ordner-Profile in Minuten, 15 bis 1440, Standard 60; in Export/Import und Sicherung enthalten), `folderProfilesActive`, `lastSkipInfo/At`, `awaitingFirstStart` (Menge), `previewLimit`, `logFilterErrors/Transfers`, `pausedUntil`, `manualOnly`, `staleWarn*`, `staleBaseline`, `freeSpaceMonths`, `freeSpaceKeepFavorites`, `deviceId`, `lastWifiTriggerAt`, `pullTipDone`, `syncOffWifi` (Bool, Standard aus, seit 0.11.5, DEC-126) | Anwendungseinstellungen und Gerätezustand. `exportable()`/`importFrom` begrenzen, was gesichert wird (14 Schlüssel, ab 0.11.5 zusätzlich `syncOffWifi`; ältere Sicherungen ohne den Schlüssel bleiben gültig – laut Development, Anzahl nicht nachgezählt) |
 | `guard` (`GuardStore`) | `block_<profileId>` = `"<Kind>;<count>;<total>;<folder>"`; `check_<profileId>` = `"LOCAL,REMOTE"`; `allowDelete_<id>`, `keepFiles_<id>` (Booleans, einmalig verbraucht) | offene Schutzbremse, Stichproben-Vormerkung, Einmal-Freigaben |
 | `purge` (`PurgeStore`) | `rules_<profileId>` (Menge kodierter `PurgeRule`), `files_<profileId>` (Menge Pfade) | vorgemerktes PC-Leeren |
 | `restore` (`RestoreFailures`) | `failed` = Menge `"<profileId>:<restoreId>"` | fehlgeschlagene Wiederherstellungen |

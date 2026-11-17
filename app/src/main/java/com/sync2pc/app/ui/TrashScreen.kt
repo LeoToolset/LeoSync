@@ -65,7 +65,10 @@ import com.sync2pc.app.data.ProfileType
 import com.sync2pc.app.l10n.Texts
 import com.sync2pc.app.l10n.plural
 import com.sync2pc.app.l10n.str
+import com.sync2pc.app.mirror.MirrorEngine
+import com.sync2pc.app.mirror.PcTrashNameMemory
 import com.sync2pc.app.mirror.PendingIntervention
+import com.sync2pc.app.mirror.RestoreFailures
 import com.sync2pc.app.mirror.PurgeRule
 import com.sync2pc.app.mirror.PurgeSides
 import com.sync2pc.app.mirror.RestoreManager
@@ -238,6 +241,16 @@ private fun TrashView(profile: Profile, hasPhotos: Boolean, modifier: Modifier, 
             Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // SYNC-20261115-353: Info-Hinweise zu Umzug und PC-Rückfall (nur solange der Zustand besteht, nicht rot)
+            val trashNotes = buildList {
+                val migrationWaits = data.entries.any { it.trashPath.startsWith(MirrorEngine.DOT_TRASH_DIR, ignoreCase = true) }
+                if (migrationWaits) {
+                    add(str(R.string.trash_note_migration))
+                    if (RestoreFailures(ctx).exhaustedCount(listOf(profile.id)) > 0) add(str(R.string.trash_note_exhausted))
+                }
+                if (PcTrashNameMemory(ctx).isRejected(profile)) add(str(R.string.trash_note_pc_fallback))
+            }
+            if (trashNotes.isNotEmpty()) item(key = "trash-notes") { TrashInfoNote(trashNotes) }
             // Übersicht: belegter Platz + Aufräumen
             item {
                 SectionCard(profile.name) {

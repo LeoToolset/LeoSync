@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -280,7 +281,7 @@ fun ErrorText(text: String, modifier: Modifier = Modifier) {
  * Kurze Texte (bis [limit] Zeichen oder nur ein Satz) erscheinen wie [Hint].
  */
 @Composable
-fun HintMore(text: String, limit: Int = 120) {
+fun HintMore(text: String, limit: Int = 120, extraBottom: androidx.compose.ui.unit.Dp = 0.dp) {
     // Satzende = ". ", "! " oder "? " nach mindestens zwei Zeichen ohne Punkt -> "z. B." und "e.g." trennen nicht
     val cut = SENTENCE_END.find(text)?.range?.first?.minus(1)?.takeIf { it in 1 until text.length - 2 }
     if (text.length <= limit || cut == null) { Hint(text); return }
@@ -292,6 +293,8 @@ fun HintMore(text: String, limit: Int = 120) {
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.clickable { open = !open }.padding(vertical = 6.dp),
         )
+        // SYNC-20261113-311: zusätzlicher Abstand unter dem Link (nur wo angefordert), damit das nächste Feld nicht darauf klebt
+        if (extraBottom > 0.dp) androidx.compose.foundation.layout.Spacer(Modifier.height(extraBottom))
     }
 }
 

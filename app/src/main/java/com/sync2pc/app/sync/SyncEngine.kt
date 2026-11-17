@@ -28,6 +28,7 @@ import com.sync2pc.app.geo.CountryLookup
 import com.sync2pc.app.media.MediaAnalyzer
 import com.sync2pc.app.media.MediaItem
 import com.sync2pc.app.media.MediaScanner
+import com.sync2pc.app.smb.EncryptionAuto
 import com.sync2pc.app.smb.RemoteEntry
 import com.sync2pc.app.smb.SmbSession
 import kotlinx.coroutines.CancellationException
@@ -107,6 +108,10 @@ class SyncEngine(
 
     /** Frühester Zeitpunkt (ms), zu dem zu junge Dateien übertragen werden dürfen; 0 = keine */
     override var nextYoungFileAt: Long = 0
+        private set
+
+    /** Spätester Zeitpunkt (ms), zu dem die neuste zu junge Datei reift; 0 = keine (SYNC-20261113-306) */
+    override var newestYoungFileAt: Long = 0
         private set
 
     private var run = SyncRun(
@@ -195,6 +200,7 @@ class SyncEngine(
                 dao.pruneRuns(now - 90 * day)   // Verlaufseinträge 90 Tage
             }
             log("I", Msg.of(R.string.eng_start_photos, trigger, profile.name, profile.smbPath))
+            if (!dryRun && KnownNetStore.takeNote(context, profile.id)) log("I", Msg.of(R.string.eng_net_relearned))
 
             // --- 1. Quellen scannen und bekannte Dateien ohne I/O aussortieren --------
             emit(str(R.string.eng_searching), 0, 0, 0, 0, null)
@@ -218,8 +224,9 @@ class SyncEngine(
                 val age = nowSec - maxOf(m.dateAddedSec, m.dateModifiedSec)
                 if (!dryRun && age < minAge) {
                     young++
-                    val readyAt = (maxOf(m.dateAddedSec, m.dateModifiedSec) + minAge) * 1000
+                    val readyAt = FollowUpPlan.readyAtMs(m.dateAddedSec, m.dateModifiedSec, minAge)
                     if (nextYoungFileAt == 0L || readyAt < nextYoungFileAt) nextYoungFileAt = readyAt
+                    if (readyAt > newestYoungFileAt) newestYoungFileAt = readyAt
                     continue
                 }
                 todo += m
@@ -228,6 +235,9 @@ class SyncEngine(
                 Msg.plural(R.plurals.eng_found, items.size, items.size, todo.size, skippedKnown),
                 if (young > 0) Msg.join("", listOf(Msg.lit(", "), Msg.of(R.string.eng_too_young, young, settings.minFileAgeMinutes))) else null)))
             if (todo.isEmpty()) {
+                // SYNC-20261116-446: ohne Arbeit keine Verbindung -> Verschlüsselungsstatus (Symbol der Profilkarte) nie aufgefrischt;
+                // ist er unbekannt, einmal durch eine Prüfverbindung ermitteln (nur Verbindung auf und zu, keine Übertragung)
+                if (!dryRun) com.sync2pc.app.smb.EncryptionStatus.verifyIfUnknown(profile) { SmbSession.open(profile).close() }
                 return finish(RunStatus.OK, RunSummary.NOTHING, 0, skippedKnown, 0, 0, 0)
             }
 
@@ -244,6 +254,7 @@ class SyncEngine(
                 if (dryRun) { message = Msg.of(R.string.eng_offline_preview, com.sync2pc.app.sync.userErrorMsg(e)); null }
                 else throw e
             }
+            if (!dryRun) smb?.let { if (EncryptionAuto.afterOpen(context, profile, it)) log("I", Msg.of(R.string.eng_enc_auto_required)) }
             val countries = CountryLookup.get(context)
             if (!countries.isAvailable) log("W", Msg.of(R.string.eng_no_geo))
             val offline = smb == null

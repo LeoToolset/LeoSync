@@ -5,6 +5,7 @@ app/build/
 .kotlin/
 .build/
 releases/*.apk
+releases/*.aab
 *.apk
 *.aab
 *.ap_

@@ -40,3 +40,5 @@ enum class UploadVerdict {
 
 /** Die Quelldatei hat sich während des Uploads geändert; die Temp-Datei ist verworfen, nichts wurde als fertig gespeichert */
 class SourceChangedException : IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_changed))
+/** Die Zieldatei auf dem PC hat sich während des Uploads geändert (R-I5); die Temp-Datei ist verworfen, nichts wurde überschrieben */
+class TargetChangedException : IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.tree_err_changed))

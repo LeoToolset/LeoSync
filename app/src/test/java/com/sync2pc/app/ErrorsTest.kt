@@ -79,6 +79,14 @@ class ErrorsTest {
 
     @Test fun friendlyIdsForKnownStatuses() {
         assertEquals(R.string.err_friendly_login, friendlyErrorId(IOException("STATUS_LOGON_FAILURE")))
+        // SYNC-20261114-334: Passwort nicht lesbar / Keystore nicht verfügbar / Gastsitzung, auch als Ursache in der Kette
+        assertEquals(R.string.err_friendly_credential_unreadable, friendlyErrorId(com.sync2pc.app.data.CredentialUnreadableException()))
+        assertEquals(R.string.err_friendly_credential_unavailable, friendlyErrorId(IOException("x", com.sync2pc.app.data.CredentialUnavailableException())))
+        assertEquals(R.string.err_friendly_guest_session, friendlyErrorId(com.sync2pc.app.smb.SmbGuestSessionException()))
+        // keine Netzwerkfehler: Wiederholen ändert nichts bzw. der nächste Auslöser versucht es
+        assertFalse(isNetworkError(com.sync2pc.app.data.CredentialUnreadableException()))
+        assertFalse(isNetworkError(com.sync2pc.app.data.CredentialUnavailableException()))
+        assertFalse(isNetworkError(com.sync2pc.app.smb.SmbGuestSessionException()))
         assertEquals(R.string.err_friendly_login, friendlyErrorId(IOException("x", RuntimeException("STATUS_ACCOUNT_LOCKED_OUT"))))
         assertEquals(R.string.err_friendly_share_missing, friendlyErrorId(IOException("STATUS_BAD_NETWORK_NAME")))
         assertEquals(R.string.err_friendly_folder_missing, friendlyErrorId(IOException("STATUS_OBJECT_PATH_NOT_FOUND")))

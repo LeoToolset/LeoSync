@@ -14,8 +14,6 @@ val versionProps = Properties().apply {
 val vMajor = versionProps.getProperty("VERSION_MAJOR").trim().toInt()
 val vMinor = versionProps.getProperty("VERSION_MINOR").trim().toInt()
 val vPatch = versionProps.getProperty("VERSION_PATCH").trim().toInt()
-// GitHub-Repo für Selbst-Updates, z. B. "benutzer/Sync2PC" (leer = in der App einstellen)
-val updateRepo = versionProps.getProperty("UPDATE_REPO", "").trim()
 
 // --- Signierung (keystore.properties wird vom Builder erzeugt, nicht in Git) ---
 val keystoreFile = rootProject.file("keystore.properties")
@@ -29,13 +27,13 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.sync2pc.app"
+        // Play-only (SYNC-20261114-346): neue Paket-ID; der Code-Namespace bleibt com.sync2pc.app
+        applicationId = "ch.leo.sync"
         minSdk = 29
         targetSdk = 36
         versionCode = vMajor * 1_000_000 + vMinor * 1_000 + vPatch
         versionName = "$vMajor.$vMinor.$vPatch"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
 
     signingConfigs {

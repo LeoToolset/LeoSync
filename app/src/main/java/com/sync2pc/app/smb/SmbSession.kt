@@ -17,6 +17,9 @@ import com.hierynomus.smbj.connection.Connection
 import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
 import com.sync2pc.app.data.CredentialCrypto
+import com.sync2pc.app.data.CredentialUnavailableException
+import com.sync2pc.app.data.CredentialUnreadableException
+import com.sync2pc.app.data.DecryptResult
 import com.sync2pc.app.data.Profile
 import com.sync2pc.app.data.SmbEncryption
 import com.sync2pc.app.sync.PartialHash
@@ -56,12 +59,15 @@ data class RemoteEntry(val name: String, val size: Long, val isDirectory: Boolea
  * - OFF: wie bisher (smbj-Standard, nie verschlüsseln);
  * - PREFERRED: `withEncryptData(true)` (verschlüsselt, sobald der Server SMB3-Verschlüsselung kann, sonst still unverschlüsselt);
  * - REQUIRED: zusätzlich nur die Dialekte SMB 3.1.1, 3.0.2 und 3.0 (die Pflichtprüfung vor/nach der Anmeldung steht in [PcLogin]).
- * `withSigningRequired` bleibt unverändert (nicht Teil des Auftrags).
+ * [signingRequired] (B11b, SYNC-20261115-365): der Server hat für dieses Profil einmal signiert, die Signierung wird jetzt verlangt
+ * (`withSigningRequired(true)`; smbj verwirft unsignierte Antworten, bei Verschlüsselung schaltet es die Pflicht selbst ab).
  */
 internal fun smbConfigFor(
     encryption: SmbEncryption, timeoutSec: Long, soTimeoutSec: Long? = null, multiProtocol: Boolean = false,
+    signingRequired: Boolean = false,
 ): SmbConfig {
     val b = SmbConfig.builder().withTimeout(timeoutSec, TimeUnit.SECONDS)
+    if (signingRequired) b.withSigningRequired(true)
     if (soTimeoutSec != null) b.withSoTimeout(soTimeoutSec, TimeUnit.SECONDS)
     if (multiProtocol) b.withMultiProtocolNegotiate(true)
     when (encryption) {
@@ -152,6 +158,9 @@ class SmbSession private constructor(
     val target: SmbTarget,
 ) : RemoteStore {
 
+    /** Ist diese Sitzung tatsächlich verschlüsselt? (für die automatische Umstellung der Stufe, B11a) */
+    val isEncrypted: Boolean get() = smbSessionEncrypted(session)
+
     companion object {
         const val TEMP_SUFFIX = ".s2ptmp"
         private const val BUFFER = 1 shl 20 // 1 MB
@@ -173,6 +182,7 @@ class SmbSession private constructor(
         /** smbj-Verbindung hinter der Schnittstelle von [PcLogin] (Aushandlung hier, Anmeldung erst in [authenticate]) */
         private class SmbLink(
             private val client: SMBClient, private val connection: Connection, private val profile: Profile,
+            private val guard: SessionGuard? = null,
         ) : PcLink<Session> {
             override fun serverGuid(): String? = connection.getConnectionContext().getServerGuid()?.toString()
             // smbj 0.13.0: Dialekt SMB 3.x und ConnectionContext.supportsEncryption() (3.1.1: Verfahren ausgehandelt;
@@ -181,11 +191,39 @@ class SmbSession private constructor(
                 val cc = connection.getConnectionContext()
                 cc.negotiatedProtocol.dialect.isSmb3x && cc.supportsEncryption()
             } catch (e: Exception) { false }
-            override fun authenticate(): Session = connection.authenticate(AuthenticationContext(
-                profile.smbUser,
-                CredentialCrypto.decrypt(profile.smbPasswordEnc).toCharArray(),
-                profile.smbDomain.ifBlank { null },
-            ))
+            override fun authenticate(): Session {
+                // Nie mit leerem Passwort anmelden, wenn das gespeicherte nicht lesbar ist (R-SMB5, -334): Fehlanmeldungen können am
+                // PC eine Kontosperre auslösen
+                val password = when (val r = CredentialCrypto.decryptResult(profile.smbPasswordEnc)) {
+                    is DecryptResult.Ok -> r.plain
+                    DecryptResult.Unreadable -> throw CredentialUnreadableException()
+                    DecryptResult.Unavailable -> throw CredentialUnavailableException()
+                }
+                val signingExpected = SigningStatus.required(profile)
+                val session = try {
+                    connection.authenticate(AuthenticationContext(
+                        profile.smbUser, password.toCharArray(), profile.smbDomain.ifBlank { null },
+                    ))
+                } catch (e: Exception) {
+                    val chain = generateSequence<Throwable>(e) { t -> t.cause?.takeIf { it !== t } }.take(9).toList()
+                    // Gastsitzung bei Signierpflicht gehört zur Gast-Ablehnung, nicht zur Signier-Karte (SYNC-20261115-371)
+                    if (chain.any { it is com.hierynomus.smbj.session.SMB2GuestSigningRequiredException }) throw SmbGuestSessionException()
+                    // B11b: verlangt LeoSync Signierung, der Server bietet sie nicht mehr an, scheitert die Anmeldung in smbj
+                    if (signingExpected && chain.any { it.message?.contains("sign", ignoreCase = true) == true }) throw SmbSigningRejectedException(e)
+                    throw e
+                }
+                // Gast- und anonyme Sitzungen ablehnen, wenn ein Benutzer konfiguriert ist (-334 Punkt 6): ein falsches Passwort
+                // wird von manchen Servern still zur Gastsitzung, ein gefälschter Server könnte jede Anmeldung so annehmen
+                if (SessionPolicy.rejectGuest(profile.smbUser.isNotBlank(), session.isGuest, session.isAnonymous)) {
+                    try { session.close() } catch (ignored: Exception) {}
+                    throw SmbGuestSessionException()
+                }
+                // Antwortprüfung (SYNC-20261115-365/-371): ab jetzt gilt sie für jedes Paket der Verbindung, vor jeder weiteren Anfrage
+                // (TREE_CONNECT, srvsvc). Signierpflicht = der Server verlangt sie oder der B11b-Merker (bei Verschlüsselung entfällt sie).
+                val encrypted = smbSessionEncrypted(session)
+                guard?.setMode(PacketPolicy.modeAfterLogin(encrypted, signingExpected || session.isSigningRequired, session.sessionId))
+                return session
+            }
             override fun sessionEncrypted(session: Session): Boolean = smbSessionEncrypted(session)
             override fun close() {
                 try { connection.close() } catch (ignored: Exception) {}
@@ -198,7 +236,18 @@ class SmbSession private constructor(
         private class SmbTransport(private val config: SmbConfig, private val profile: Profile) : PcTransport<Session> {
             override fun connect(host: String): PcLink<Session> {
                 val client = SMBClient(config)
-                return try { SmbLink(client, client.connect(host), profile) } catch (e: Exception) {
+                return try {
+                    val connection = client.connect(host)
+                    // Antwortprüfung hinter dem Compound-Handler, bei allen Stufen (auch «Aus»: der Server kann Signierung verlangen)
+                    val remembered = SigningStatus.required(profile)
+                    val guard = SessionGuard.install(connection)
+                    if (PacketPolicy.mustAbortWithoutGuard(profile.encryption(), remembered, installed = guard != null)) {
+                        try { connection.close() } catch (ignored: Exception) {}
+                        if (profile.encryption() == SmbEncryption.REQUIRED) throw SmbEncryptionUnavailableException(host)
+                        throw SmbSigningRejectedException()
+                    }
+                    SmbLink(client, connection, profile, guard)
+                } catch (e: Exception) {
                     try { client.close() } catch (ignored: Exception) {}
                     // «Erforderlich» schränkt die Dialekte auf SMB 3.x ein: lehnt der Server die Aushandlung ab
                     // (STATUS_NOT_SUPPORTED, nur SMB 2.x), ist das "Verschlüsselung nicht verfügbar", kein Verbindungsfehler
@@ -260,8 +309,9 @@ class SmbSession private constructor(
         ): SmbSession {
             val target = targetOf(profile)
                 ?: throw IllegalArgumentException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_path, profile.smbPath))
-            val config = if (quick) smbConfigFor(profile.encryption(), 30, 30, multiProtocol = true)
-                else smbConfigFor(profile.encryption(), 60, 90, multiProtocol = true)
+            val signing = SigningStatus.required(profile)
+            val config = if (quick) smbConfigFor(profile.encryption(), 30, 30, multiProtocol = true, signingRequired = signing)
+                else smbConfigFor(profile.encryption(), 60, 90, multiProtocol = true, signingRequired = signing)
             val c = connectChecked(profile, target.host, config, access, learn, learnNetOk, onChangedGuid, authenticate = true)
             try {
                 val link = c.link as SmbLink
@@ -269,7 +319,11 @@ class SmbSession private constructor(
                 val share = connectShareHinted(session, target.share, profile.encryption()) as? DiskShare
                     ?: throw IllegalStateException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_not_disk, target.share))
                 PcLogin.commit(c, pcStore)
+                // Erst nach dem erfolgreichen TREE_CONNECT gilt die Sitzung als verschlüsselt (Klartext-Antworten wären abgewiesen worden)
                 EncryptionStatus.record(profile, smbSessionEncrypted(session))
+                // B11b: signiert der Server (ohne Verschlüsselung), künftig verlangen
+                if (SigningPolicy.shouldRemember(profile.encryption(), smbSessionEncrypted(session), session.isGuest, session.isAnonymous, session.isSigningRequired))
+                    SigningStatus.remember(profile)
                 return SmbSession(link.rawClient, link.rawConnection, session, share, target)
             } catch (e: Exception) {
                 c.close()
@@ -285,7 +339,7 @@ class SmbSession private constructor(
         fun checkPc(profile: Profile, access: PcAccess = PcAccess.AUTO, seen: PcSeen? = null): PcDecision {
             val host = SmbTarget.hostOf(profile.smbPath)
                 ?: throw IllegalArgumentException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_path, profile.smbPath))
-            val config = smbConfigFor(profile.encryption(), 30)
+            val config = smbConfigFor(profile.encryption(), 30, signingRequired = SigningStatus.required(profile))
             return connectChecked(profile, host, config, access, false, true, null, authenticate = false, seen = seen).decision
         }
 
@@ -302,7 +356,7 @@ class SmbSession private constructor(
         ): List<String> {
             val host = SmbTarget.hostOf(profile.smbPath)
                 ?: throw IllegalArgumentException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_path, profile.smbPath))
-            val config = smbConfigFor(profile.encryption(), 30)
+            val config = smbConfigFor(profile.encryption(), 30, signingRequired = SigningStatus.required(profile))
             val c = connectChecked(profile, host, config, access, false, learnNetOk, onChangedGuid, authenticate = true)
             try {
                 val transport = com.rapid7.client.dcerpc.transport.SMBTransportFactories.SRVSVC.getTransport(c.session!!)
@@ -410,6 +464,15 @@ class SmbSession private constructor(
         return out
     }
 
+    /**
+     * Kennzeichen des Laufwerks hinter der Freigabe (B12, SYNC-20261114-341, Variante B): Erstellungszeit des Freigabe-Stamms in
+     * Sekunden. smbj 0.13.0 bietet die Volume-Seriennummer nicht öffentlich an. Null = keine Aussage (Abfrage scheitert, Wert fehlt oder
+     * unsinnig): dann nie blockieren und nichts merken. Kein Schutz gegen gezielte Angreifer (faelschbar).
+     */
+    fun volumeStamp(): Long? = try {
+        com.sync2pc.app.mirror.VolumeStamp.fromMillis(share.getFileInformation("").basicInformation.creationTime?.toEpochMillis())
+    } catch (e: Exception) { null }
+
     /** Grösse und Änderungszeit einer Datei, null wenn nicht vorhanden */
     override fun stat(path: String): RemoteEntry? {
         if (!share.fileExists(path)) return null
@@ -516,6 +579,16 @@ class SmbSession private constructor(
             SMB2CreateDisposition.FILE_OPEN, null
         ).use { f -> PartialHash.compute(size) { off, len -> readFully(f, off, len) } }
 
+    /**
+     * Gründliche Prüfsumme für die Erkennung von Umbenennungen (SYNC-20261114-340, [PartialHash.thorough]): bis 32 MB die ganze Datei,
+     * darüber 32 Stichproben; so wird eine grosse Datei nicht komplett gelesen.
+     */
+    fun thoroughHash(path: String, size: Long): String =
+        share.openFile(
+            path, EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL,
+            SMB2CreateDisposition.FILE_OPEN, null
+        ).use { f -> PartialHash.thorough(size) { off, len -> readFully(f, off, len) } }
+
     /** Prüfsumme nach Prüfstufe (0.9.0, siehe [PartialHash.forLevel]) */
     fun levelHash(path: String, size: Long, level: Int): String =
         share.openFile(
@@ -532,6 +605,21 @@ class SmbSession private constructor(
             path, EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL,
             SMB2CreateDisposition.FILE_OPEN, null
         ).use { f -> PartialHash.comparison(size, { off, len -> readFully(f, off, len) }, check, onBytes) }
+
+    /**
+     * Lesezugriff auf Teile einer PC-Datei (SYNC-20261115-367, Auflösung und Dauer im Konflikt): die Datei wird nur für die Dauer von [block] geöffnet.
+     * Die Begrenzung (Budget, Zeitlimit) setzt der Aufrufer ([com.sync2pc.app.media.BudgetedSource]).
+     */
+    fun <T> withRange(path: String, size: Long, block: (com.sync2pc.app.media.RangeSource) -> T): T =
+        share.openFile(
+            path, EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL,
+            SMB2CreateDisposition.FILE_OPEN, null
+        ).use { f ->
+            block(object : com.sync2pc.app.media.RangeSource {
+                override val size: Long = size
+                override fun readAt(offset: Long, length: Int): ByteArray = readFully(f, offset, length)
+            })
+        }
 
     private fun readFully(f: com.hierynomus.smbj.share.File, off: Long, len: Int): ByteArray {
         val buf = ByteArray(len)
@@ -571,6 +659,8 @@ class SmbSession private constructor(
         expectedHash: (() -> String)? = null,
         /** true = Quelldatei hat sich seit dem Einlesen geändert (Ordner-Spiegelung, -202); null = keine Prüfung */
         sourceChanged: (() -> Boolean)? = null,
+        /** false = die Zieldatei auf dem PC hat sich seit dem Einlesen geändert (Ordner-Spiegelung, -333); null = keine Prüfung */
+        targetUnchanged: (() -> Boolean)? = null,
     ): Long {
         val tempPath = finalPath + TEMP_SUFFIX
         val tmp = stat(tempPath)
@@ -628,10 +718,11 @@ class SmbSession private constructor(
                     throw java.io.IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_incomplete, offset, size))
                 com.sync2pc.app.mirror.UploadVerdict.COMMIT -> {}
             }
-            if (resumedAt > 0 && expectedHash != null) {
+            // Teil-Hash der Temp-Datei vor dem Umbenennen: nach jedem Fortsetzen und bei Dateien ab 4 MiB (R-T2, -333)
+            if (expectedHash != null && com.sync2pc.app.mirror.TransferIntegrity.needsHashCheck(size, resumedAt > 0)) {
                 val h = PartialHash.compute(size) { off, len -> readFully(f, off, len) }
                 if (h != expectedHash()) {
-                    // Angefangene Datei gehörte zu einer anderen Version -> verwerfen, nächster Versuch beginnt neu
+                    // Angefangene bzw. beschädigte Datei gehört nicht zur Quelle -> verwerfen, nächster Versuch beginnt neu
                     try { f.deleteOnClose() } catch (ignored: Exception) {}
                     throw java.io.IOException(com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.smb_err_resume))
                 }
@@ -646,6 +737,12 @@ class SmbSession private constructor(
                 } catch (ignored: Exception) {
                     // Zeitstempel ist "nice to have" – Upload deswegen nicht scheitern lassen
                 }
+            }
+            // Ziel unmittelbar vor dem Ersetzen noch wie beim Einlesen? Sonst Temp-Datei verwerfen, nichts überschreiben (R-I5, -333).
+            // Verbleibendes Fenster zwischen dieser Prüfung und dem Umbenennen: Millisekunden.
+            if (targetUnchanged != null && !targetUnchanged()) {
+                try { f.deleteOnClose() } catch (ignored: Exception) {}
+                throw com.sync2pc.app.mirror.TargetChangedException()
             }
             f.rename(finalPath, replaceExisting)
         }

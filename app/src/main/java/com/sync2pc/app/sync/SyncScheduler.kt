@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.Data
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.sync2pc.app.data.GlobalSettings
@@ -43,10 +44,37 @@ object SyncScheduler {
     const val WORK_DEFERRED_MANUAL = "sync-deferred-manual"
     /** Folgelauf nach übersprungenen (während des Laufs geänderten) Dateien, SYNC-20261111-173; eigener Name: WORK_FOLLOWUP bleibt unberührt */
     const val WORK_SKIP_FOLLOWUP = "sync-skip-followup"
+    /** Sicherheitsnetz gegen einen Prozess-Kill mitten im Lauf (SYNC-20261116-437), siehe [armRunGuard] */
+    const val WORK_RUN_GUARD = "sync-run-guard"
     val ALL_SYNC_WORK = listOf(
         WORK_AUTO, WORK_MANUAL, WORK_FOLLOWUP, WORK_RETRY, WORK_RESUME, WORK_DEFERRED_AUTO, WORK_DEFERRED_MANUAL,
-        WORK_SKIP_FOLLOWUP
+        WORK_SKIP_FOLLOWUP, WORK_RUN_GUARD
     )
+
+    /** Wartezeit des Sicherheitsnetzes: länger als ein normaler Hintergrund-Abschnitt, damit es nie in einen laufenden Lauf fällt */
+    const val RUN_GUARD_MINUTES = 10L
+
+    /**
+     * SYNC-20261116-437: Startet ein automatischer Lauf, wird ein verzögerter Fortsetzen-Auftrag hinterlegt. Beendet Android den Prozess
+     * mitten im Lauf (Freezer: «excessive binder traffic during cached»), läuft keine Unterbruch-Markierung mehr und ein JobScheduler-Job
+     * wird nicht neu geplant; dann setzt dieser Auftrag den Sync fort. Jedes reguläre Ende des Laufs nimmt ihn zurück ([disarmRunGuard]).
+     * Eigener Name: der laufende Auftrag trägt selbst WORK_AUTO/WORK_RESUME und darf sich nicht ersetzen.
+     */
+    fun armRunGuard(context: Context, appendToCurrent: Boolean = false) {
+        val req = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setInputData(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_resume), KEY_MANUAL to false, KEY_RESUME to true))
+            .setConstraints(autoConstraints(context))
+            .setBackoffCriteria(BackoffPolicy.LINEAR, SPECIAL_BACKOFF_SECONDS, TimeUnit.SECONDS)
+            .setInitialDelay(RUN_GUARD_MINUTES, TimeUnit.MINUTES)
+            .build()
+        // Der Wächter-Lauf selbst (Name WORK_RUN_GUARD) darf sich nicht ersetzen: dann hinten anhängen
+        val policy = if (appendToCurrent) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE
+        WorkManager.getInstance(context).enqueueUniqueWork(WORK_RUN_GUARD, policy, req)
+    }
+
+    fun disarmRunGuard(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_RUN_GUARD)
+    }
     const val KEY_SKIP_FOLLOWUP = "skipFollowUp"
     const val KEY_RESUME = "resume"
 
@@ -69,6 +97,10 @@ object SyncScheduler {
             .setConstraints(autoConstraints(context))
             .setBackoffCriteria(BackoffPolicy.LINEAR, SPECIAL_BACKOFF_SECONDS, TimeUnit.SECONDS)
         if (delayMinutes > 0) b.setInitialDelay(delayMinutes, TimeUnit.MINUTES)
+        // SYNC-20261116-427: Ein Fortsetzen-Lauf ohne Verzögerung ist expedited, sonst erlaubt Android ab API 31 keinen
+        // Vordergrunddienst aus dem Hintergrund (FGS Disallowed) und der Lauf könnte eingefroren oder gestoppt werden.
+        // Expedited verträgt weder Startverzögerung noch Ladebedingung (wie beim automatischen Start, spec.expedited).
+        else if (autoSpec(context).expedited) b.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
         // Aus dem laufenden Fortsetzen-Auftrag heraus anhängen statt ersetzen (sonst bricht er sich selbst ab)
         val policy = if (appendToCurrent) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE
         WorkManager.getInstance(context).enqueueUniqueWork(WORK_RESUME, policy, b.build())
@@ -139,7 +171,10 @@ object SyncScheduler {
      * nach dessen Ende einmal nachgeholt: Rückgabe [StartResult.DEFERRED] (die Oberfläche kann das melden).
      */
     fun enqueueAuto(context: Context, trigger: Msg): StartResult {
-        if (gate(context).requestStart(manual = false)) return StartResult.DEFERRED
+        if (gate(context).requestStart(manual = false)) {
+            android.util.Log.w("SyncScheduler", "Auto-Start vorgemerkt: Sperre belegt (Auslöser: ${trigger.text()})")
+            return StartResult.DEFERRED
+        }
         // Läuft noch nichts, bleibt ein bereits eingereihter Auftrag bestehen (KEEP). Fotos, die während des Laufs entstehen,
         // erkennt SyncWorker am Ende und plant einen Nachhol-Sync.
         WorkManager.getInstance(context).enqueueUniqueWork(WORK_AUTO, ExistingWorkPolicy.KEEP, autoRequest(context, trigger))
@@ -168,9 +203,33 @@ object SyncScheduler {
         return StartResult.STARTED
     }
 
-    private fun manualRequest(): OneTimeWorkRequest =
+    /**
+     * «Erneut versuchen» einer Meldungsgruppe (SYNC-20261115-409): manueller Lauf **nur** der Profile in [profileIds], Sperren und
+     * Vorrang wie beim manuellen Start. Läuft gerade ein Sync, wird (wie [enqueueManual]) ein gewöhnlicher manueller Nachlauf vorgemerkt.
+     */
+    fun enqueueManualFor(context: Context, profileIds: Set<Long>): StartResult {
+        if (profileIds.isEmpty()) return enqueueManual(context)
+        clearPause(context)
+        if (gate(context).requestStart(manual = true)) return StartResult.DEFERRED
+        WorkManager.getInstance(context).enqueueUniqueWork(WORK_MANUAL, ExistingWorkPolicy.KEEP, manualRequest(profileIds))
+        return StartResult.STARTED
+    }
+
+    /** Auftragsdaten: nur diese Profile laufen (manueller Lauf einer Gruppe); null = alle */
+    const val KEY_ONLY_IDS = "onlyIds"
+    fun onlyIds(d: Data): Set<Long>? = d.getLongArray(KEY_ONLY_IDS)?.toSet()
+
+    /** Marke an einem Auftrag, der dieses Profil erneut versucht (Zustand «Wird erneut versucht» wird daraus abgeleitet, nicht gespeichert) */
+    const val RETRY_TAG_PREFIX = "retry:"
+    fun retryingIds(tags: Set<String>): Set<Long> =
+        tags.filter { it.startsWith(RETRY_TAG_PREFIX) }.mapNotNull { it.removePrefix(RETRY_TAG_PREFIX).toLongOrNull() }.toSet()
+
+    private fun manualRequest(onlyIds: Set<Long>? = null): OneTimeWorkRequest =
         OneTimeWorkRequestBuilder<SyncWorker>()
-            .setInputData(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_manual), KEY_MANUAL to true))
+            .setInputData(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_manual), KEY_MANUAL to true).let { d ->
+                if (onlyIds == null) d else androidx.work.Data.Builder().putAll(d).putLongArray(KEY_ONLY_IDS, onlyIds.toLongArray()).build()
+            })
+            .also { b -> onlyIds?.forEach { b.addTag(RETRY_TAG_PREFIX + it) } }
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
@@ -225,15 +284,40 @@ object SyncScheduler {
         try { enqueueDeferred(context, kind) } catch (t: Throwable) { g.restore(kind) }
     }
 
-    /** Nachhol-Sync, wenn zu junge Dateien übersprungen wurden */
-    fun enqueueFollowUp(context: Context, atMillis: Long) {
+    /** Auftragsdaten des Nachhol-Laufs: Profil-IDs der Fotoprofile mit wartenden Dateien (SYNC-20261113-306) */
+    const val KEY_FOLLOWUP_IDS = "followupIds"
+
+    /**
+     * Profil-IDs eines Nachhol-Auftrags; null = Auftrag ohne Einschränkung (Auftrag aus einer früheren Version oder kein
+     * Nachhol-Lauf): dann laufen wie bisher alle passenden Profile.
+     */
+    fun followUpIds(d: Data): Set<Long>? = d.getLongArray(KEY_FOLLOWUP_IDS)?.toSet()
+
+    /**
+     * Nachhol-Sync für zu junge Fotos (SYNC-20261113-306): ein Auftrag für alle Fotoprofile ([profileIds] = die mit wartenden
+     * Dateien; nur diese laufen). Ersetzt einen noch wartenden Auftrag (REPLACE) und vereinigt dessen Profil-IDs (aus den
+     * Tags) mit den neuen, damit keine verloren geht. [profileIds] leer: nichts einzuplanen.
+     */
+    fun enqueueFollowUp(context: Context, atMillis: Long, profileIds: Set<Long>) {
+        if (profileIds.isEmpty()) return
+        val wm = WorkManager.getInstance(context)
+        // Nur wartende Aufträge zählen: ein gerade laufender (der aufrufende selbst) hat seine Profile bereits bearbeitet
+        val waiting = try {
+            wm.getWorkInfosForUniqueWork(WORK_FOLLOWUP).get()
+                .filter { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                .flatMap { FollowUpPlan.idsFromTags(it.tags) }.toSet()
+        } catch (e: Exception) { emptySet() }
+        val ids = FollowUpPlan.merge(waiting, profileIds)
         val delay = (atMillis - System.currentTimeMillis()).coerceAtLeast(30_000)
-        val req = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setInputData(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_followup), KEY_MANUAL to false))
+        val b = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setInputData(
+                Data.Builder().putAll(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_followup), KEY_MANUAL to false))
+                    .putLongArray(KEY_FOLLOWUP_IDS, ids.toLongArray()).build()
+            )
             .setConstraints(autoConstraints(context))
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(WORK_FOLLOWUP, ExistingWorkPolicy.REPLACE, req)
+        for (id in ids) b.addTag(FollowUpPlan.tagOf(id))
+        wm.enqueueUniqueWork(WORK_FOLLOWUP, ExistingWorkPolicy.REPLACE, b.build())
     }
 
     /**
@@ -248,6 +332,21 @@ object SyncScheduler {
             .setInitialDelay(SkipFollowUp.DELAY_MINUTES, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(WORK_SKIP_FOLLOWUP, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
+    }
+
+    /**
+     * Folgelauf nach einem Lauf mit verschobenen Dateien einreihen (SYNC-20261111-173), aus [SyncWorker] herausgelöst
+     * (SYNC-20261114-332, Testnaht, Verhalten unverändert): höchstens einer pro Stunde, nicht nach Unterbruch mitten im Lauf und
+     * nicht während einer Pause. true = eingereiht.
+     */
+    internal fun planSkipFollowUp(
+        context: Context, settings: GlobalSettings, interruptedMidRun: Boolean, deferredFiles: Int, folderChanged: Boolean, now: Long,
+    ): Boolean {
+        if (interruptedMidRun || settings.isPaused() ||
+            !SkipFollowUp.mayPlan(deferredFiles, now, settings.lastSkipFollowUpAt, folderChanged, settings.folderFollowUpIdleUntil)) return false
+        enqueueSkipFollowUp(context)
+        settings.lastSkipFollowUpAt = now // erst nach dem Einreihen: scheitert es, bleibt das Stundenkontingent erhalten
+        return true
     }
 
     /** Einmaliger Content-Trigger; wird nach jedem Sync-Lauf neu "scharf" gestellt. */
@@ -281,24 +380,29 @@ object SyncScheduler {
 
     /**
      * Ordner-Profile: Änderungen auf dem PC melden sich nicht von selbst ->
-     * im eingestellten Intervall prüfen (nur WLAN; der Worker prüft zusätzlich das Ziel-WLAN).
+     * im globalen Intervall prüfen (SYNC-20261113-306; nur WLAN, der Worker prüft zusätzlich das Ziel-WLAN),
+     * solange mindestens ein aktives Ordner-Profil existiert, sonst wird die Abfrage abbestellt.
      */
     fun scheduleRemotePoll(context: Context) {
-        val minutes = GlobalSettings(context).remotePollMinutes
+        val gs = GlobalSettings(context)
         val wm = WorkManager.getInstance(context)
-        if (minutes <= 0 || GlobalSettings(context).manualOnly) { wm.cancelUniqueWork(WORK_REMOTE_POLL); return }
-        val req = PeriodicWorkRequestBuilder<TriggerWorker>(minutes.coerceAtLeast(15).toLong(), TimeUnit.MINUTES)
+        if (!gs.folderProfilesActive || gs.manualOnly) { wm.cancelUniqueWork(WORK_REMOTE_POLL); return }
+        val req = PeriodicWorkRequestBuilder<TriggerWorker>(gs.folderCheckMinutes.toLong(), TimeUnit.MINUTES)
             .setInputData(triggerData(Msg.of(com.sync2pc.app.R.string.trigger_poll)))
             .setConstraints(autoConstraints(context))
             .build()
         wm.enqueueUniquePeriodicWork(WORK_REMOTE_POLL, ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 
-    /** Nach Änderungen an Profilen aufrufen: kürzestes Intervall der aktiven Ordner-Profile übernehmen */
+    /**
+     * Nach Änderungen an Profilen aufrufen: merkt, ob es aktive Ordner-Profile gibt. Ist das globale Intervall noch nie gesetzt
+     * (erster Start nach dem Update oder Sicherung ohne diesen Wert), gilt die Startwert-Regel [FolderCheck.startValue].
+     */
     fun updateRemotePoll(context: Context, profiles: List<com.sync2pc.app.data.Profile>) {
-        val min = profiles.filter { it.enabled && it.type() == com.sync2pc.app.data.ProfileType.MIRROR }
-            .minOfOrNull { it.remotePollMinutes.coerceAtLeast(15) } ?: 0
-        GlobalSettings(context).remotePollMinutes = min
+        val gs = GlobalSettings(context)
+        val folders = profiles.filter { it.enabled && it.type() == com.sync2pc.app.data.ProfileType.MIRROR }
+        gs.folderProfilesActive = folders.isNotEmpty()
+        if (!gs.folderCheckIsSet) gs.folderCheckMinutes = FolderCheck.startValue(folders.map { it.remotePollMinutes })
         scheduleRemotePoll(context)
     }
 
@@ -332,7 +436,6 @@ object SyncScheduler {
         armContentTrigger(context, replace = false)
         scheduleSafetyNet(context, restart = false)
         scheduleRemotePoll(context)
-        com.sync2pc.app.update.UpdateWorker.schedule(context)
         StaleCheck.schedule(context)
         // R-N1: ein nach Prozess-Kill noch vorgemerkter Nachlauf (ohne laufenden Sync) wird jetzt nachgeholt
         resumeDeferred(context)

@@ -1,6 +1,5 @@
 package com.sync2pc.app
 
-import com.sync2pc.app.sync.PcCheckMode
 import com.sync2pc.app.ui.DogState
 import com.sync2pc.app.ui.HomeHeadline
 import com.sync2pc.app.ui.HomeStatus
@@ -17,6 +16,37 @@ class HomeStatusTest {
         isRunning = false, hasProfiles = true, hasActiveProfile = true, attentionCount = 0, noConnection = false,
         userPaused = false, wifiPaused = false, lastRunHadErrors = false, allUpToDate = true,
     )
+
+    // SYNC-20261115-409: Fehler > Meldungen > übrige Zustände
+    @Test
+    fun fehlerHatVorrangVorMeldungenPauseUndKeineVerbindung() {
+        val busy = good.copy(userPaused = true, noConnection = true, recentSkip = true)
+        assertEquals(HomeHeadline.ERRORS, HomeStatus.headline(busy.copy(errorCount = 1, messageCount = 2)))
+        assertEquals(HomeHeadline.MESSAGES, HomeStatus.headline(busy.copy(messageCount = 2)))
+        assertEquals(HomeHeadline.PAUSED, HomeStatus.headline(busy))
+    }
+
+    // SYNC-20261115-416 A: Fehler > Wartet auf dich (Stufe 4, auch Konflikt) > Meldungen (Stufe 5)
+    @Test
+    fun wartetAufDichVorMeldungenAberNachFehlern() {
+        assertEquals(HomeHeadline.ERRORS, HomeStatus.headline(good.copy(errorCount = 1, attentionCount = 2, messageCount = 3)))
+        assertEquals(HomeHeadline.ATTENTION, HomeStatus.headline(good.copy(attentionCount = 2, messageCount = 3)))
+        assertEquals(HomeHeadline.MESSAGES, HomeStatus.headline(good.copy(messageCount = 3)))
+    }
+
+    @Test
+    fun laufenUndNichtEingerichtetBleibenVorrangig() {
+        assertEquals(HomeHeadline.RUNNING, HomeStatus.headline(good.copy(isRunning = true, errorCount = 3)))
+        assertEquals(HomeHeadline.NOT_CONFIGURED, HomeStatus.headline(good.copy(hasProfiles = false, errorCount = 3)))
+    }
+
+    @Test
+    fun meldungenHabenNeutralesSymbolUndWartenderHund() {
+        assertFalse(HomeStatus.showsWarning(HomeHeadline.MESSAGES))
+        assertEquals(DogState.WAITING, HomeStatus.dogFor(HomeHeadline.MESSAGES, false))
+        assertTrue(HomeStatus.showsWarning(HomeHeadline.ERRORS))
+        assertEquals(DogState.ATTENTION, HomeStatus.dogFor(HomeHeadline.ERRORS, false))
+    }
 
     @Test
     fun gutZustandZeigtAlleAktuell() {
@@ -123,14 +153,6 @@ class HomeStatusTest {
     }
 
     @Test
-    fun fehlendeStandortBerechtigungIstNieGesichert() {
-        // SYNC-20261111-176 R4: neutral statt «Alles gesichert und aktuell»
-        assertEquals(HomeHeadline.IDLE, HomeStatus.headline(good.copy(locationMissing = true)))
-        // Fehler und Verbindung behalten ihren Vorrang
-        assertEquals(HomeHeadline.ERRORS, HomeStatus.headline(good.copy(locationMissing = true, lastRunHadErrors = true)))
-    }
-
-    @Test
     fun neutralWennNichtAktuellUndNichtsOffen() {
         val h = HomeStatus.headline(good.copy(allUpToDate = false))
         assertEquals(HomeHeadline.IDLE, h)
@@ -146,18 +168,9 @@ class HomeStatusTest {
 
     @Test
     fun verbindungsErmittlung() {
-        val wifi = listOf("Heim")
-        // WIFI-Modus: Name muss in der Liste stehen
-        assertTrue(HomeStatus.profileCanRunNow(PcCheckMode.WIFI, wifi, "Heim", true, false))
-        assertFalse(HomeStatus.profileCanRunNow(PcCheckMode.WIFI, wifi, "Fremd", true, false))
-        assertFalse(HomeStatus.profileCanRunNow(PcCheckMode.WIFI, wifi, null, false, false))
-        // ohne WLAN-Liste (nur manuell) hängt nichts an der Verbindung
-        assertTrue(HomeStatus.profileCanRunNow(PcCheckMode.WIFI, emptyList(), null, false, false))
-        // GUID: jede erlaubte Netzart
-        assertTrue(HomeStatus.profileCanRunNow(PcCheckMode.GUID, emptyList(), null, true, false))
-        assertFalse(HomeStatus.profileCanRunNow(PcCheckMode.GUID, emptyList(), null, false, false))
-        // mobile Daten/VPN mit Schalter
-        assertTrue(HomeStatus.profileCanRunNow(PcCheckMode.WIFI, wifi, null, true, true))
+        // Seit 0.19.0 (SYNC-20261115-351): nur noch die erlaubte Netzart (WLAN, oder mobile Daten/VPN mit Schalter ausserhalb des Roamings)
+        assertTrue(HomeStatus.profileCanRunNow(onAllowedNetwork = true))
+        assertFalse(HomeStatus.profileCanRunNow(onAllowedNetwork = false))
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.sync2pc.app.ui
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
@@ -29,15 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.sync2pc.app.R
+import com.sync2pc.app.diag.VendorHints
 import com.sync2pc.app.l10n.str
 
 /**
  * Berechtigungen als Zeilen mit Knopf (0.9.0: gemeinsam für die Karte auf der Startseite und die Seite
  * "App-Berechtigungen"). [showDone] = auch erteilte Punkte mit "✓ erledigt" zeigen. [needs] = nur diese Gruppen (0.11.0).
  */
-@SuppressLint("BatteryLife")
 @Composable
-fun PermissionRows(perms: PermStatus, showDone: Boolean, needs: PermNeeds = PermNeeds.ALL) {
+fun PermissionRows(perms: PermStatus, showDone: Boolean, needs: PermNeeds = PermNeeds.ALL, showBattery: Boolean = true) {
     val ctx = LocalContext.current
     val multi = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
     val single = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -76,40 +75,55 @@ fun PermissionRows(perms: PermStatus, showDone: Boolean, needs: PermNeeds = Perm
     )
 
     @Composable
-    fun row(ok: Boolean, text: String, button: String, onClick: () -> Unit) {
+    fun row(ok: Boolean, text: String, button: String, help: String? = null, extra: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
         if (ok && !showDone) return
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(text, modifier = Modifier.weight(1f))
-            if (ok) Text(str(R.string.perm_granted), style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
-            else TextButton(onClick = onClick) { Text(button) }
+        androidx.compose.foundation.layout.Column {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(text, modifier = Modifier.weight(1f))
+                if (ok) Text(str(R.string.perm_granted), style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
+                else TextButton(onClick = onClick) { Text(button) }
+            }
+            // SYNC-20261115-354: Kurzerklärung je Zeile (SYNC-20261115-354), bei erledigten Zeilen nicht mehr nötig
+            if (!ok && help != null) Hint(help)
+            if (!ok && extra != null) extra()
         }
     }
 
     if (needs.media) {
-        row(perms.media, str(R.string.perm_media), grant) { ask(PermStatus.mediaPermissions) { multi.launch(PermStatus.mediaPermissions) } }
-        // Standort in Fotos erst nach dem Medienzugriff (Android verlangt die Reihenfolge)
-        if (perms.media || showDone) row(perms.mediaLocation, str(R.string.perm_media_location), grant) {
-            if (perms.media) ask(arrayOf(Manifest.permission.ACCESS_MEDIA_LOCATION)) { single.launch(Manifest.permission.ACCESS_MEDIA_LOCATION) }
-            else ask(PermStatus.mediaPermissions) { multi.launch(PermStatus.mediaPermissions) }
-        }
+        row(perms.media, str(R.string.perm_media), grant, str(R.string.setup_media_help)) { ask(PermStatus.mediaPermissions) { multi.launch(PermStatus.mediaPermissions) } }
+        // Standort in Fotos (ACCESS_MEDIA_LOCATION) gehört nicht mehr hierher: erst bei der Wahl der Länderordner (SYNC-20261115-354)
     }
-    if (needs.base && Build.VERSION.SDK_INT >= 33) row(perms.notifications, str(R.string.perm_notifications), grant) {
+    if (needs.base && Build.VERSION.SDK_INT >= 33) row(perms.notifications, str(R.string.perm_notifications), grant, str(R.string.setup_notif_help)) {
         ask(arrayOf(Manifest.permission.POST_NOTIFICATIONS)) { single.launch(Manifest.permission.POST_NOTIFICATIONS) }
     }
-    if (needs.wifi) {
-        row(perms.location, str(R.string.perm_location), grant) { ask(PermStatus.locationPermissions) { multi.launch(PermStatus.locationPermissions) } }
-        if (perms.location || showDone) row(perms.backgroundLocation, str(R.string.perm_location_always), open) {
-            if (perms.location) single.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            else ask(PermStatus.locationPermissions) { multi.launch(PermStatus.locationPermissions) }
-        }
-        row(perms.locationServiceOn,
-            str(if (perms.locationServiceOn) R.string.perm_location_service else R.string.perm_location_off),
-            str(R.string.perm_turn_on)) {
-            ctx.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-        }
+    // Akku-Freistellung über die allgemeine Systemliste, mit aufklappbarem «So geht es»; der Haken folgt der Systemabfrage
+    if (needs.base && showBattery) row(perms.batteryUnrestricted, str(R.string.perm_battery), str(R.string.setup_battery_btn),
+        str(R.string.setup_battery_help) + (if (BatteryTip.skipped(ctx)) " " + str(R.string.perm_battery_skipped) else ""),
+        extra = {
+            var how by remember { mutableStateOf(false) }
+            TextButton(onClick = { how = !how }) { Text(str(R.string.setup_battery_how)) }
+            if (how) BatteryHowTo()
+        }) {
+        BatteryTip.openSettings(ctx)
     }
-    if (needs.base) row(perms.batteryUnrestricted, str(R.string.perm_battery), open) {
-        ctx.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}")))
+}
+
+/**
+ * «So geht es» der Akku-Einstellung: allgemeine Schritte, Herstellerhinweise und Anleitung im Browser (vorher eigene Karte in den
+ * Einstellungen, SYNC-20261115-392). Gemeinsam für Einstellungen und Tipp-Seite (SYNC-20261116-445), eine Textquelle.
+ */
+@Composable
+internal fun BatteryHowTo() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Hint(str(R.string.setup_battery_steps))
+    val vendor = remember { VendorHints.forDevice() }
+    if (vendor != null) {
+        Text(str(R.string.settings_vendor_extra, vendor.vendor), style = MaterialTheme.typography.bodyMedium)
+        vendor.steps.forEach { Hint("• $it") }
+        HintMore(str(R.string.settings_vendor_note))
     }
+    TextButton(onClick = {
+        try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(VendorHints.webUrl(vendor)))) } catch (ignored: Exception) {}
+    }) { Text(str(R.string.settings_vendor_web)) }
 }

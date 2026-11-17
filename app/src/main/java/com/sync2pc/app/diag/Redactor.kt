@@ -68,11 +68,7 @@ class Redactor {
         // 1. Bekannte Werte (Profilnamen, Host, Freigabe, Benutzer, WLAN …)
         for (k in known) s = k.regex.replace(s, Regex.escapeReplacement(k.placeholder))
         // 2. Adressen und Kennungen
-        val protectedUrls = ArrayList<String>() // öffentliche Update-Quelle vor den Pfad-Regeln schützen und am Ende zurücksetzen
-        s = URL.replace(s) { m ->
-            if (isPublicUrl(m.value)) { protectedUrls += m.value; "\u0001${protectedUrls.size - 1}\u0001" }
-            else m.groupValues[1] + "://<URL>"
-        }
+        s = URL.replace(s) { m -> m.groupValues[1] + "://<URL>" }
         s = EMAIL.replace(s, "<E-Mail>")
         s = MAC.replace(s, "<MAC>")
         s = IPV4.replace(s) { m -> if (m.groupValues.drop(1).all { it.toInt() <= 255 }) "<IP>" else m.value }
@@ -98,7 +94,6 @@ class Redactor {
             if (v.count { it == '/' } == 1 && !v.contains('\\') && !FILE_EXT.containsMatchIn(v)) v else relPath(v)
         }
         s = FILE_NAME.replace(s) { m -> "<Datei>." + m.groupValues[1].lowercase() }
-        if (protectedUrls.isNotEmpty()) s = RESTORE.replace(s) { m -> protectedUrls[m.groupValues[1].toInt()] }
         return s
     }
 
@@ -121,15 +116,7 @@ class Redactor {
         return token.split('/', '\\').joinToString(sep) { segment(it) }
     }
 
-    private fun isPublicUrl(url: String): Boolean {
-        val host = url.substringAfter("://").substringBefore('/').substringBefore(':').lowercase()
-        return host in PUBLIC_HOSTS
-    }
-
     companion object {
-        /** Öffentliche Update-Quelle: enthält nichts Persönliches und hilft bei Update-Fehlern */
-        private val PUBLIC_HOSTS = setOf("api.github.com", "github.com", "objects.githubusercontent.com", "raw.githubusercontent.com")
-
         private const val EXT = "jpe?g|png|gif|webp|heic|heif|bmp|tiff?|dng|cr2|nef|arw|raw|mp4|mov|avi|mkv|3gp|webm|m4v|mp3|m4a|wav|aac|ogg|flac|opus|" +
             "pdf|docx?|xlsx?|pptx?|odt|ods|txt|csv|zip|rar|7z|apk|sqlite|db|bak|tmp|lnk|vcf|ics|rtf|epub|svg"
 
@@ -144,7 +131,6 @@ class Redactor {
         private val FILE_EXT =Regex("""\.($EXT)$""", RegexOption.IGNORE_CASE)
         private val MONTH_NAME = Regex("""(\d{1,2})\s*-\s*.+""")
         private val DATE_FOLDER = Regex("""\b(\d{4}[\\/]\d{1,2}) - [^\r\n,;()"“→↑↓<]+""")
-        private val RESTORE = Regex("\u0001(\\d+)\u0001")
         private val URL = Regex("""\b([a-zA-Z][a-zA-Z0-9+.-]*)://[^\s"'<>)]+""")
         private val EMAIL = Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+""")
         private val MAC = Regex("""\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b""")

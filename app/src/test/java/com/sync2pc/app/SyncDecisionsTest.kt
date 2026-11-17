@@ -11,6 +11,14 @@ import org.junit.Test
 
 /** B2/B3/B6 (SYNC-20261111-163): reine Entscheidungen aus SyncWorker, WifiNetworkReceiver, SyncScheduler */
 class SyncDecisionsTest {
+    // ---- SYNC-20261116-434: «Pausiert – wartet auf WLAN» nach Zeitlimit-Stopp bei vorhandenem Netz? ----
+    @Test fun pausedTextAfterTimeoutStop() {
+        assertFalse(SyncDecisions.pausedWaitsForWifi(WorkInfo.STOP_REASON_TIMEOUT, networkAllowed = true))
+        assertTrue(SyncDecisions.pausedWaitsForWifi(WorkInfo.STOP_REASON_TIMEOUT, networkAllowed = false))
+        assertTrue(SyncDecisions.pausedWaitsForWifi(WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY, networkAllowed = true))
+        assertTrue(SyncDecisions.pausedWaitsForWifi(WorkInfo.STOP_REASON_UNKNOWN, networkAllowed = false))
+    }
+
     // ---- B3: nach Stopp fortsetzen? ----
     @Test fun resumeAfterSystemStop() {
         assertTrue(SyncDecisions.resumeAfterStop(true, WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY, manual = false))

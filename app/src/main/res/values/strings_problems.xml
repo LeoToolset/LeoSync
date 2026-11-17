@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Messages per cause instead of per profile (SYNC-20261115-409): titles, levels, collective tile -->
+    <string name="prob_title_guard">Sync stopped – decide</string>
+    <string name="prob_title_plaintext">Unencrypted reply rejected</string>
+    <string name="prob_title_unsigned">Unsigned reply rejected</string>
+    <string name="prob_title_pc_unrecognised">PC not recognised</string>
+    <string name="prob_title_enc_refused">Encryption not available</string>
+    <string name="prob_title_sign_refused">Signing no longer available</string>
+    <string name="prob_title_login">Sign-in failed</string>
+    <string name="prob_title_access_denied">Access denied</string>
+    <string name="prob_title_credentials_unreadable">Saved passwords cannot be read</string>
+    <string name="prob_title_share_missing">Share not found</string>
+    <string name="prob_title_access_unencrypted">Share requires encryption</string>
+    <string name="prob_title_pc_full">PC storage full</string>
+    <string name="prob_title_phone_full">Phone storage full</string>
+    <string name="prob_title_guest">Signed in only as guest</string>
+    <string name="prob_title_negotiation">Connection setup failed</string>
+    <string name="prob_title_pc_folder_missing">Folder on the PC missing</string>
+    <string name="prob_title_phone_folder_lost">Access to the phone folder lost</string>
+    <string name="prob_title_restore_failed">Restore failed</string>
+    <string name="prob_title_unknown">Sync failed</string>
+    <string name="prob_title_conflicts">Conflicts are waiting</string>
+    <string name="prob_title_month_folders">Month folders to decide</string>
+    <string name="prob_title_delete_confirm">Confirm deletions</string>
+    <string name="prob_title_pc_unreachable">PC not reachable</string>
+    <string name="prob_title_partial">Some files failed</string>
+    <string name="prob_level_1">Data at risk – decide</string>
+    <string name="prob_level_2">Security</string>
+    <string name="prob_level_3">Needs your action</string>
+    <string name="prob_level_4">Decision about files</string>
+    <string name="prob_level_5">Temporary</string>
+    <string name="prob_level_tip">Tip</string>
+    <string name="msg_title_errors">Errors</string>
+    <string name="msg_title_messages">Messages</string>
+    <string name="msg_counter">%1$d of %2$d</string>
+    <string name="msg_prev">Previous message</string>
+    <string name="msg_next">Next message</string>
+    <string name="msg_region">Messages, %1$d of %2$d</string>
+    <string name="msg_new_important">A more important message arrived</string>
+    <string name="msg_show">Show</string>
+    <string name="msg_retry">Try again</string>
+    <string name="msg_retrying">Trying again …</string>
+    <string name="msg_enter_password">Enter password again</string>
+    <string name="msg_open_profile">Open profile</string>
+    <string name="msg_open_profile_named">Open profile “%1$s”</string>
+    <string name="msg_more_profiles">+ %1$d more</string>
+    <string name="msg_affects">Affects: %1$s</string>
+    <string name="msg_decide">Decide</string>
+    <string name="msg_lower_named">Reduce protection: %1$s</string>
+    <string name="msg_pw_title">Enter password again</string>
+    <string name="msg_pw_text">One password for all profiles that use this account. LeoSync tries one profile first so the account is not locked by repeated failures.</string>
+    <string name="msg_pw_ok">Save and test</string>
+    <string name="msg_pw_failed">Sign-in failed. The password was not saved for the other profiles.</string>
+    <string name="msg_pw_done">Password saved. Trying again …</string>
+    <string name="msg_unreachable_text">The PC could not be reached for a day or more.</string>
+    <plurals name="msg_status_count">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
+    <string name="home_headline_waiting">Waiting for you</string>
+    <string name="msg_label_guard">Decision needed · sync stopped</string>
+    <plurals name="msg_setup_count">
+        <item quantity="one">%1$d setup issue</item>
+        <item quantity="other">%1$d setup issues</item>
+    </plurals>
+    <plurals name="msg_tip_count">
+        <item quantity="one">%1$d tip</item>
+        <item quantity="other">%1$d tips</item>
+    </plurals>
+    <plurals name="chk_waiting_group">
+        <item quantity="one">%1$d profile is waiting for its first sync.</item>
+        <item quantity="other">%1$d profiles are waiting for their first sync.</item>
+    </plurals>
+    <string name="home_headline_errors">Errors</string>
+    <string name="home_headline_messages">Messages</string>
+</resources>

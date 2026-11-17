@@ -17,6 +17,7 @@
         <item quantity="other">%1$s files are verified as backed up. Tap to remove them from the phone.</item>
     </plurals>
     <string name="notif_wait_wifi">Waiting for Wi-Fi</string>
+    <string name="notif_resuming">Resuming …</string>
     <string name="notif_wait_wifi_named">Waiting for Wi-Fi “%1$s”</string>
     <string name="notif_paused_files">%1$s / %2$s files</string>
     <plurals name="notif_conflict_text">
@@ -30,7 +31,4 @@
         <item quantity="other">Not backed up for %1$s days</item>
     </plurals>
     <string name="notif_stale_text">Is the home Wi-Fi connected and the PC switched on? Tap to open.</string>
-    <string name="notif_update_text">LeoSync %1$s is available. Tap to install.</string>
-    <string name="notif_installed_title">Update installed</string>
-    <string name="notif_installed_text">LeoSync was updated to version %1$s. Tap to open.</string>
 </resources>

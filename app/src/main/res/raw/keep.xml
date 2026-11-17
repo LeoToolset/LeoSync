@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R8 / Ressourcen-Verkleinerung (SYNC-20261114-346): Texte werden zur Laufzeit per Name aufgeloest
+  (Msg-Kennungen in Verlauf und Meldungen, DEC-202, Resources.getIdentifier). Ohne diese Regel koennte
+  isShrinkResources solche Texte entfernen, weil kein direkter R.string-Verweis auf sie zeigt.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/*,@plurals/*" />

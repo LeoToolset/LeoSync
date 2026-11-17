@@ -158,8 +158,8 @@ data class Profile(
     /** Prüfstufe nach dem Hochladen ([VerifyLevel.code]), Standard Mittel */
     val verifyLevel: Int = 2,
     // ---- seit DB v8 (SYNC-20261109-047) ----
-    /** PC-Erkennung: WIFI (nur WLAN-Name), GUID (nur PC-Kennung) oder BOTH */
-    val pcCheck: String = "WIFI",
+    /** PC-Erkennung; seit 0.19.0 immer GUID (WIFI/BOTH nur noch in alten Sicherungen lesbar, [pcMode] ergibt immer GUID) */
+    val pcCheck: String = "GUID",
     /** Gelernte PC-Kennung (leer = noch nicht gelernt) */
     val pcGuid: String = "",
     /** Host (kleingeschrieben), zu dem [pcGuid] gelernt wurde */
@@ -175,7 +175,7 @@ data class Profile(
     fun layout(): FolderLayout = FolderLayout.of(folderLayout)
     fun folders(): List<String> = splitLines(sourceFolders)
     fun ssids(): List<String> = splitLines(wifiSsids)
-    /** Erkennungsart (unbekannt/leer = WIFI, heutiges Verhalten) */
+    /** Erkennungsart: seit 0.19.0 immer GUID */
     fun pcMode(): com.sync2pc.app.sync.PcCheckMode = com.sync2pc.app.sync.PcCheckMode.parse(pcCheck)
     fun delete(): DeleteMode = if (type() == ProfileType.PHOTOS) DeleteMode.of(deleteMode) else DeleteMode.KEEP
     /** Wirksame Prüfstufe: Wer Fotos vom Handy entfernt, prüft immer (mindestens Mittel, wie in der Oberfläche). */
@@ -291,6 +291,10 @@ data class MirrorConflict(
     val remoteModified: Long,
     val detectedAt: Long,
     val resolution: String? = null,
+    /** PC-Seite bei Bildern/Videos (SYNC-20261115-367): Masse nach Drehung; null = noch nicht gelesen, 0 = nicht lesbar */
+    val remoteWidth: Int? = null,
+    val remoteHeight: Int? = null,
+    val remoteDurationMs: Long? = null,
 )
 
 /** Zeile für die Statistik (synchronisierte Datei + Analyse-Infos, falls vorhanden). */

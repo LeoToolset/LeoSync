@@ -136,15 +136,15 @@ class PcLoginTest {
     // ---- Reihenfolge, Lernen -------------------------------------------------------------------
 
     @Test fun orderIsConnectGuidDecideAuthenticate_andLearnOnlyAfterCommit() {
-        val store = FakeStore(profile("BOTH"))
-        val c = run(profile("BOTH"), FakeTransport(a), store, PcAccess.SETUP, learn = true)
+        val store = FakeStore(profile("GUID"))
+        val c = run(profile("GUID"), FakeTransport(a), store, PcAccess.SETUP, learn = true)
         assertEquals(listOf("connect#1", "guid#1", "auth#1"), log)
         assertEquals(PcDecision.ALLOW_AND_LEARN, c.decision)
         assertEquals("session#1", c.session)
         // noch nichts gelernt: erst nach connectShare in commit
         assertTrue(store.learned.isEmpty())
         assertEquals(Triple(1L, host, a), c.learn!!.let { Triple(it.id, it.host, it.guid) })
-        assertEquals("BOTH", c.learn!!.mode)
+        assertEquals("GUID", c.learn!!.mode)
         PcLogin.commit(c, store)
         assertEquals(listOf(Triple(1L, host, a)), store.learned)
     }
@@ -183,12 +183,12 @@ class PcLoginTest {
         }
     }
 
-    @Test fun wifiLearnsSilentlyButAlwaysAuthenticates() {
-        val c = run(profile("WIFI"), FakeTransport(a), FakeStore(profile("WIFI")), PcAccess.AUTO)
-        assertEquals(PcDecision.ALLOW_AND_LEARN, c.decision)
-        assertNotNull(c.learn)
-        val c2 = run(profile("WIFI"), FakeTransport(null), FakeStore(profile("WIFI")), PcAccess.AUTO)
-        assertEquals(PcDecision.ALLOW, c2.decision)
+    @Test fun formerWifiProfilesNowRequireTheKnownId() {
+        // seit 0.19.0 (SYNC-20261115-351): auch ein Profil mit altem Wert WIFI wird wie GUID geprüft (kein stilles Lernen im Hintergrund)
+        log.clear()
+        assertRejected(PcDecision.UNKNOWN) { run(profile("WIFI"), FakeTransport(a), FakeStore(profile("WIFI")), PcAccess.AUTO) }
+        log.clear()
+        assertRejected(PcDecision.NO_ID) { run(profile("WIFI"), FakeTransport(null), FakeStore(profile("WIFI")), PcAccess.AUTO) }
     }
 
     // ---- Kennungswechsel (Punkt 3 / V8) --------------------------------------------------------
@@ -239,22 +239,6 @@ class PcLoginTest {
         }
         // Datenbank WIFI, Kopie GUID (noch ungespeicherter Wechsel): strenger gilt
         assertEquals(com.sync2pc.app.sync.PcCheckMode.GUID, PcLogin.currentIdentity(profile("GUID"), FakeStore(profile("WIFI"))).mode)
-    }
-
-    @Test fun wifiLearnedIdIsNoTrustForGuidModes() {
-        val store = FakeStore(profile("WIFI", a, host)) // still bei WIFI gelernt
-        // Wechsel auf GUID noch ungespeichert: gespeicherte Kennung zählt als leer -> AUTO/USER melden nicht an
-        for (access in listOf(PcAccess.AUTO, PcAccess.USER)) {
-            log.clear()
-            assertRejected(PcDecision.UNKNOWN) { run(profile("GUID"), FakeTransport(a), store, access) }
-        }
-        // SETUP darf anmelden (Einrichtung), lernt aber nicht für einen ungespeicherten Moduswechsel
-        val c = run(profile("GUID"), FakeTransport(a), store, PcAccess.SETUP, learn = true)
-        assertEquals(PcDecision.ALLOW_AND_LEARN, c.decision)
-        assertNull(c.learn)
-        // auch eine abweichende Kennung ist bei WIFI-Datenbankstand kein Vertrauensanker
-        log.clear()
-        assertRejected(PcDecision.UNKNOWN) { run(profile("BOTH"), FakeTransport(b), store, PcAccess.AUTO) }
     }
 
     @Test fun missingStoreForSavedProfileFailsSafe() {

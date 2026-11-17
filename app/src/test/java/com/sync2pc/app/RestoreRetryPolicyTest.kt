@@ -9,6 +9,19 @@ import org.junit.Test
 /** Höchstens 5 automatische Versuche pro Wiederherstellung (0.11.8, DEC-146) */
 class RestoreRetryPolicyTest {
 
+    // SYNC-20261115-420: Eintrag "profilId:restoreId" liefert die PROFIL-ID, auch wenn sie nicht der Wiederherstellungs-ID gleicht
+    @Test fun failedProfileIdsUseProfilePart() {
+        assertEquals(listOf(59L), RestoreRetryPolicy.failedProfileIds(setOf("59:900"), listOf(59L, 60L)))
+        assertEquals(emptyList<Long>(), RestoreRetryPolicy.failedProfileIds(setOf("59:900"), listOf(900L)))
+        assertEquals(listOf(59L), RestoreRetryPolicy.failedProfileIds(setOf("59:900", "59:901"), listOf(59L)))
+    }
+
+    // SYNC-20261115-420 (2): je Ursache eine Zeile, auch für ein Profil mit anderem Fehler
+    @Test fun failureLinesOnePerCause() {
+        val s = com.sync2pc.app.sync.FailureLines.build(listOf("LD" to "Login", "LX" to "Login", "SM" to "Ordner fehlt"))
+        assertEquals("LD, LX: Login\nSM: Ordner fehlt", s)
+    }
+
     @Test fun exhaustedFromFifthAttempt() {
         assertFalse(RestoreRetryPolicy.exhausted(0))
         assertFalse(RestoreRetryPolicy.exhausted(4))

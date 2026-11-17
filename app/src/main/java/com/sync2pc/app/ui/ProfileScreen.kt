@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Delete
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyRow
@@ -65,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import com.sync2pc.app.R
 import com.sync2pc.app.data.AppDatabase
 import com.sync2pc.app.data.CredentialCrypto
+import com.sync2pc.app.data.DecryptResult
+import com.sync2pc.app.data.PasswordKeep
 import com.sync2pc.app.data.DeleteMode
 import com.sync2pc.app.data.ConflictMode
 import com.sync2pc.app.data.ChangeConfirm
@@ -111,7 +114,7 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     val pState = rememberSaveable(stateSaver = ProfileSaver.saver) { mutableStateOf(Profile(name = str(R.string.profile_default_photos))) }
     var p by pState
     var password by remember { mutableStateOf("") }
-    var newSsid by remember { mutableStateOf("") }
+    var pwUnreadable by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testFailed by remember { mutableStateOf(false) }
     var testing by remember { mutableStateOf(false) }
@@ -120,8 +123,11 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     var encLine by remember { mutableStateOf<String?>(null) }
     var encHelp by remember { mutableStateOf(false) }
     var encOpenSignal by remember { mutableStateOf(0) }
-    // PC-Erkennung (0.13.0): Modus vom Benutzer gewählt? Zuletzt "anderer PC" gemeldet? Rückfrage zum Neuvertrauen
-    var pcTouched by rememberSaveable { mutableStateOf(false) }
+    // SYNC-20261115-352: Herabsetzen von «Erforderlich» braucht eine Bestätigung; Info-Zeile «automatisch umgestellt» bis «OK»
+    var lowerEncTo by remember { mutableStateOf<SmbEncryption?>(null) }
+    var autoInfoTick by remember { mutableStateOf(0) }
+    var gphotosTipGone by remember { mutableStateOf(false) }
+    // PC-Erkennung: zuletzt "anderer PC" gemeldet? Rückfrage zum Neuvertrauen
     var pcChanged by remember { mutableStateOf(false) }
     var trustAsk by remember { mutableStateOf<TrustAsk?>(null) }
     var hostAsk by remember { mutableStateOf<HostAsk?>(null) }
@@ -134,7 +140,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     var step by rememberSaveable { mutableStateOf(Step.NAME) }
     var showMissing by remember { mutableStateOf(false) }
     // SYNC-20261112-252 P4: Speichern ohne WLAN-Namen blockiert: Hinweis fest über «Speichern» statt eines Toasts, der die Schaltfläche überdeckt
-    var wifiBlockedOnSave by remember { mutableStateOf(false) }
     // SYNC-20261111-235: Namen der anderen Profile (Einmaligkeit); Fehlertext erst nach «Weiter»/«Speichern»
     var otherNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var showNameError by remember { mutableStateOf(false) }
@@ -172,8 +177,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     /** Neues Profil: zuerst Typ wählen (Assistent) */
     var typeChosen by rememberSaveable { mutableStateOf(profileId != 0L) }
     var showRemotePicker by remember { mutableStateOf(false) }
-    val pollState = rememberSaveable { mutableStateOf("") }
-    var pollText by pollState
     val trashState = rememberSaveable { mutableStateOf("") }
     var trashText by trashState
     var guardText by rememberSaveable { mutableStateOf("") }
@@ -192,10 +195,9 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     /** Gerade neu angelegtes Profil -> Dialog "Wie weiter?" */
     var createdId by remember { mutableStateOf<Long?>(null) }
     var chargeWarnFor by remember { mutableStateOf<Long?>(null) }
-    // Berechtigungen bei Bedarf (0.11.0): nach dem Erteilen neu lesen (onResume), auch den WLAN-Namen
+    // Berechtigungen bei Bedarf (0.11.0): nach dem Erteilen neu lesen (onResume)
     val permTick = rememberResumeTick()
     val perms = remember(permTick) { PermStatus.read(ctx) }
-    val currentSsid = remember(permTick) { WifiHelper.currentSsid(ctx) }
     // Andere Profile mit Zugangsdaten -> zum Übernehmen anbieten
     val allProfiles by remember { dao.profilesFlow() }.collectAsState(initial = emptyList())
     val credentialSources = allProfiles.filter { it.id != profileId && it.smbUser.isNotBlank() }
@@ -217,6 +219,22 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
     // Eigene Wahl getrennt merken (nur Auswahl in der Zeile "Ordnerstruktur" bzw. gespeicherter Wert); die Vorlage des
     // Eigentümers überschreibt sie nur in der Anzeige und geht bei Zieländerung wieder verloren (SYNC-20261109-089)
     var ownLayout by remember { mutableStateOf<com.sync2pc.app.data.FolderLayout?>(null) }
+    // SYNC-20261115-354: Standort in Fotos erst bei der Wahl der Länderordner (Erklärung vor dem Systemdialog)
+    var askLocationFor by remember { mutableStateOf<com.sync2pc.app.data.FolderLayout?>(null) }
+    var locationAskedPending by remember { mutableStateOf<com.sync2pc.app.data.FolderLayout?>(null) }
+    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        val layout = locationAskedPending; locationAskedPending = null
+        // Abgelehnt: die Wahl wird nicht übernommen (der Schalter bleibt aus); erteilt: Länderordner übernehmen
+        if (layout != null && res[android.Manifest.permission.ACCESS_MEDIA_LOCATION] == true) {
+            ownLayout = layout; p = p.copy(folderLayout = layout.code)
+        }
+    }
+    fun requestLocation(layout: com.sync2pc.app.data.FolderLayout?) {
+        locationAskedPending = layout
+        val need = (if (PermStatus.read(ctx).media) emptyList() else PermStatus.mediaPermissions.toList()) +
+            android.Manifest.permission.ACCESS_MEDIA_LOCATION
+        locationLauncher.launch(need.toTypedArray())
+    }
     val effectiveLayout = ProfileWizard.effectiveLayout(ownLayout, layoutOwner?.layout(), layoutEditable, p.layout())
     LaunchedEffect(effectiveLayout) {
         if (effectiveLayout.code != p.folderLayout) p = p.copy(folderLayout = effectiveLayout.code)
@@ -233,10 +251,11 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     )
                     ownLayout = it.layout()
                     p = it
-                    password =CredentialCrypto.decrypt(it.smbPasswordEnc)
+                    // SYNC-20261115-377: unlesbares Passwort nicht still zu «leer» machen (sonst Anmeldung mit leerem Passwort)
+                    pwUnreadable = CredentialCrypto.decryptResult(it.smbPasswordEnc) !is DecryptResult.Ok
+                    password = CredentialCrypto.decrypt(it.smbPasswordEnc)
                     baseline = it
                     basePassword = password
-                    pollText = it.remotePollMinutes.toString()
                     trashText = it.trashRetentionDays.toString()
                     guardText = it.massDeletePercent.toString()
                 }
@@ -245,18 +264,16 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
         }
     }
 
-    /** Neues Profil ohne eigene Wahl: BOTH mit WLAN-Namen, sonst GUID (Vorgabe SYNC-20261109-048); sonst der gewählte Modus */
-    fun pcModeNow(): PcCheckMode =
-        if (profileId == 0L && !pcTouched) (if (p.ssids().isNotEmpty()) PcCheckMode.BOTH else PcCheckMode.GUID) else p.pcMode()
+    /** Seit 0.19.0 (SYNC-20261115-351) gibt es nur noch die Erkennung per PC-Kennung (kein WLAN-Name mehr) */
+    fun pcModeNow(): PcCheckMode = PcCheckMode.GUID
 
-    /** SYNC-20261111-232 (5): Bei PC-Erkennung «WLAN» oder «Beides» ist mindestens ein WLAN-Name Pflicht */
-    fun wifiNameMissing(): Boolean = com.sync2pc.app.sync.NetworkRules.needsWifiName(pcModeNow()) && p.ssids().isEmpty()
-
-    /** Was fehlt im Schritt noch? Wie [ProfileWizard.missing], zusätzlich der WLAN-Name im Schritt «Optionen» */
+    /** Was fehlt im Schritt noch? ([ProfileWizard.missing]) */
     fun missingFor(s: Step): String? = ProfileWizard.missing(p, s)
-        ?: if (s == Step.OPTIONS && wifiNameMissing()) str(R.string.wizard_missing_wifi) else null
 
-    fun withPassword(): Profile =p.copy(smbPasswordEnc = CredentialCrypto.encrypt(password), pcCheck = pcModeNow().name)
+    fun withPassword(): Profile =p.copy(
+        smbPasswordEnc = PasswordKeep.encFor(p.smbPasswordEnc, pwUnreadable, password) { CredentialCrypto.encrypt(it) },
+        pcCheck = pcModeNow().name,
+    )
 
     /** Rückfrage VOR dem Anmelden (blockiert den IO-Thread, bis der Benutzer antwortet; ohne Antwort = nicht vertrauen) */
     fun askTrust(host: String): Boolean {
@@ -288,10 +305,11 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
             val prof = withPassword()
             withContext(Dispatchers.IO) {
                 try {
-                    // Netzbedingung fürs erste Kennenlernen (BOTH: WLAN muss in der Liste stehen), Test lernt als einziger Weg neben dem Speichern
-                    val netOk = com.sync2pc.app.sync.PcLearner.learnNetOk(ctx, prof)
-                    val r = SmbSession.testDetailed(prof, netOk) { host, _, _ -> askTrust(host) }
+                    // Der Test lernt als einziger Weg neben dem Speichern die PC-Kennung
+                    val r = SmbSession.testDetailed(prof) { host, _, _ -> askTrust(host) }
                     testResult = "✓ " + r.message
+                    // Kontakt mit bestätigter PC-Kennung: aktuelles WLAN als bekanntes Netz merken (SYNC-20261115-351)
+                    if (prof.id != 0L) com.sync2pc.app.sync.KnownNetStore.confirmContact(ctx, prof.id, WifiHelper.currentNetFingerprint(ctx))
                     // Zeile zur Verschlüsselung: Symbol plus Text, die SMB-Version steht immer in Klammern
                     when {
                         r.encrypted -> encLine = str(R.string.enc_test_ok, r.dialect)
@@ -319,22 +337,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                 }
             }
             testing = false
-        }
-    }
-
-    /**
-     * Wechsel der Erkennungsart. WIFI → GUID/BOTH: still gelernte Kennung zählt nicht als Vertrauen und wird gelöscht (verringert
-     * nur Vertrauen). Kein automatischer Test mehr (V6): Zugangsdaten werden nicht durch blosses Antippen einer Option gesendet;
-     * die Kennung wird nach dem Speichern bzw. mit «Verbindung testen» gelernt.
-     */
-    fun setPcMode(m: PcCheckMode) {
-        val old = pcModeNow()
-        pcTouched = true
-        p = p.copy(pcCheck = m.name)
-        if (PcEditorRules.clearOnModeChange(old, m) && p.id != 0L) scope.launch {
-            withContext(Dispatchers.IO) { dao.clearPcGuid(p.id) }
-            p = p.copy(pcGuid = "", pcGuidHost = "")
-            baseline = baseline?.copy(pcGuid = "", pcGuidHost = "")
         }
     }
 
@@ -389,8 +391,14 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                 val host = SmbTarget.hostOf(toSave.smbPath)?.let { com.sync2pc.app.sync.PcIdentity.normalizeHost(it) }.orEmpty()
                 // V7: eine bei WIFI still gelernte Kennung wird nie zu Vertrauen (Modus in der Datenbank WIFI, neu GUID/BOTH)
                 val keep = PcEditorRules.keepStoredOnSave(db?.pcMode(), toSave.pcMode(), db?.pcGuidHost, host)
-                val finalProfile = toSave.copy(pcGuid = if (keep) db!!.pcGuid else "", pcGuidHost = if (keep) db!!.pcGuidHost else "")
+                // B11a (-338): Hat der Benutzer die Verschlüsselungsstufe nicht angefasst, gilt die aktuelle aus der Datenbank (die
+                // automatische Umstellung auf «Erforderlich» wird nie still rückgängig gemacht); eine bewusste Änderung ist endgültig
+                val lvl = com.sync2pc.app.smb.EncryptionAuto.levelOnSave(base?.encryption(), toSave.encryption(), db?.encryption())
+                val finalProfile = toSave.copy(
+                    pcGuid = if (keep) db!!.pcGuid else "", pcGuidHost = if (keep) db!!.pcGuidHost else "", smbEncryption = lvl.level.name,
+                )
                 val id = if (isNew) dao.insertProfile(finalProfile) else { dao.updateProfile(finalProfile); toSave.id }
+                if (lvl.userChose) com.sync2pc.app.smb.EncryptionAuto.setUserChose(ctx, id)
                 if (changedSides.isNotEmpty()) MirrorGuard.afterFolderChange(
                     ctx, id, changedSides, resetState = folderChoice == FolderChoice.RESET, checked = checked,
                 )
@@ -406,7 +414,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
             Toast.makeText(ctx, str(R.string.profile_saved_toast), Toast.LENGTH_SHORT).show()
             if (isNew) {
                 // Stand gilt jetzt als gespeichert (keine Nachfrage beim Verlassen)
-                pcTouched = true
                 p = toSave.copy(id = savedId); baseline = p; basePassword = password
                 createdId = savedId
             } else onBack()
@@ -433,13 +440,13 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                 return
             }
         }
-        // -232 (5): Bearbeiten: «WLAN»/«Beides» ohne WLAN-Namen nicht speichern (der Fehlertext steht in der Karte «WLAN»)
-        if (profileId != 0L && wifiNameMissing()) {
-            wifiBlockedOnSave = true
+        // SYNC-20261115-384: auch in der Profilbearbeitung nie ein Fotos-Profil ohne Fotos und Videos speichern
+        if (profileId != 0L && p.type() == ProfileType.PHOTOS && !p.includeImages && !p.includeVideos) {
+            Toast.makeText(ctx, str(R.string.wizard_missing_media), Toast.LENGTH_LONG).show()
             return
         }
         // P7/P8: nie mit leerem oder ungültigem Zahlenfeld speichern (sonst stiller Zwischenwert)
-        val badStep = ProfileWizard.firstInvalidNumberStep(p, trashText, pollText, guardText)
+        val badStep = ProfileWizard.firstInvalidNumberStep(p, trashText, guardText)
         if (badStep != null) {
             // -120: im Assistenten zum ersten fehlerhaften Schritt zurückspringen, damit der Fehlertext sichtbar ist
             if (profileId == 0L) { showMissing = false; step = badStep }
@@ -509,8 +516,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
             if (loaded && typeChosen && !wizard) Surface(tonalElevation = 3.dp) {
                 Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (wifiBlockedOnSave && wifiNameMissing())
-                        Text(str(R.string.wizard_missing_wifi), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { leave() }, modifier = Modifier.weight(1f)) { Text(str(R.string.common_cancel)) }
                         Button(onClick = { save() }, enabled = p.name.isNotBlank(), modifier = Modifier.weight(1f)) {
@@ -532,7 +537,6 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     name = str(if (type == ProfileType.MIRROR) R.string.profile_default_folder else R.string.profile_default_photos),
                     direction = if (type == ProfileType.MIRROR) SyncDirection.BOTH.name else SyncDirection.UPLOAD.name,
                 )
-                pollText = p.remotePollMinutes.toString()
                 trashText = p.trashRetentionDays.toString()
                 guardText = p.massDeletePercent.toString()
                 baseline = p
@@ -561,6 +565,16 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     )
                     Text(stepIntro(step, isMirror), style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+
+            // SYNC-20261115-352: Meldung «Verschlüsselung nicht verfügbar» und einmalige Info «automatisch umgestellt»
+            if (!wizard && profileId != 0L) {
+                if (com.sync2pc.app.smb.EncryptionAuto.isRejected(ctx, p)) item(key = "enc-rejected") { EncRejectedBanner() }
+                if (autoInfoTick >= 0 && com.sync2pc.app.smb.EncryptionAuto.autoInfoPending(ctx, profileId)) item(key = "enc-autoinfo") {
+                    EncAutoInfoCard {
+                        com.sync2pc.app.smb.EncryptionAuto.setAutoInfo(ctx, profileId, false); autoInfoTick++
+                    }
                 }
             }
 
@@ -602,7 +616,7 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
             if (!isMirror && show(Step.SOURCE)) item {
                 SectionCard(str(R.string.profile_sources)) {
                     // Medienzugriff erst hier erfragen, wo er gebraucht wird (0.11.0)
-                    PermissionRows(perms, showDone = false, needs = PermNeeds(media = true, wifi = false, base = false))
+                    PermissionRows(perms, showDone = false, needs = PermNeeds(media = true, base = false))
                     if (p.folders().isEmpty()) HintMore(str(R.string.profile_sources_empty))
                     p.folders().forEach { f ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -619,6 +633,7 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                         subtitle = str(R.string.profile_subfolders_sub)) { p = p.copy(includeSubfolders = it) }
                     SwitchRow(str(R.string.profile_photos), p.includeImages) { p = p.copy(includeImages = it) }
                     SwitchRow(str(R.string.profile_videos), p.includeVideos) { p = p.copy(includeVideos = it) }
+                    if (!p.includeImages && !p.includeVideos) ErrorText(str(R.string.wizard_missing_media))
                 }
             }
 
@@ -640,7 +655,7 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     OutlinedTextField(p.smbUser, { p = p.copy(smbUser = it) }, label = { Text(str(R.string.profile_user)) },
                         singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(
-                        password, { password = it }, label = { Text(str(R.string.profile_password)) }, singleLine = true,
+                        password, { password = it; pwUnreadable = false }, label = { Text(str(R.string.profile_password)) }, singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
@@ -663,6 +678,8 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     if (encHelp) TextButton(onClick = {
                         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(encryptionHelpUrl())))
                     }) { Text(str(R.string.enc_help)) }
+                    // SYNC-20261115-353: aufklappbare Schritte zum Einschalten der Verschlüsselung
+                    if (encHelp) EncMoreSteps()
                 }
             }
 
@@ -677,43 +694,51 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     adoptedFrom = layoutOwner?.takeIf { layoutEditable }?.name,
                     // Bei gleichem Ziel gilt die Vorlage des Eigentümers: Auswahl gesperrt (Anzeige mit Hinweis)
                     pickable = layoutOwner == null || !layoutEditable,
-                    onPick = { ownLayout = it; p = p.copy(folderLayout = it.code) },
+                    onPick = { l ->
+                        // Länderordner brauchen den Aufnahmeort: zuerst erklären, dann der Systemdialog
+                        if (l != com.sync2pc.app.data.FolderLayout.MONTH_SUFFIX && !PermStatus.read(ctx).mediaLocation) askLocationFor = l
+                        else { ownLayout = l; p = p.copy(folderLayout = l.code) }
+                    },
                 )
+            }
+
+            // Entzogen oder nie erteilt: Zeile im Profil mit «Erteilen» (nicht in der Einrichtungskarte)
+            if (!isMirror && show(Step.TARGET) && p.layout() != com.sync2pc.app.data.FolderLayout.MONTH_SUFFIX && !perms.mediaLocation) item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(str(R.string.loc_missing), color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { askLocationFor = p.layout() }) { Text(str(R.string.loc_grant)) }
+                }
             }
 
             if (show(Step.OPTIONS)) item {
                 SectionCard(str(R.string.profile_pc_check)) {
-                    val mode = pcModeNow()
                     HintMore(str(R.string.profile_pc_check_hint))
-                    listOf(
-                        Triple(PcCheckMode.WIFI, R.string.profile_pc_opt_wifi, R.string.profile_pc_opt_wifi_sub),
-                        Triple(PcCheckMode.GUID, R.string.profile_pc_opt_guid, R.string.profile_pc_opt_guid_sub),
-                        Triple(PcCheckMode.BOTH, R.string.profile_pc_opt_both, R.string.profile_pc_opt_both_sub),
-                    ).forEach { (m, title, sub) ->
-                        Row(Modifier.fillMaxWidth().clickable { setPcMode(m) }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = mode == m, onClick = { setPcMode(m) })
-                            Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                                Text(str(title))
-                                Hint(str(sub))
-                            }
-                        }
-                    }
                     val host = SmbTarget.hostOf(p.smbPath).orEmpty()
                     val known = com.sync2pc.app.sync.PcIdentity.storedFor(p.pcGuid, p.pcGuidHost, host) != null
                     Text(
                         str(when {
-                            !mode.checksGuid -> R.string.profile_pc_status_wifi
                             pcChanged -> R.string.profile_pc_status_changed
                             known -> R.string.profile_pc_status_known
                             p.id == 0L -> R.string.profile_pc_status_new
                             else -> R.string.profile_pc_status_unknown
                         }),
-                        color = if (pcChanged && mode.checksGuid) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (pcChanged) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    // Bekannte Netze (SYNC-20261115-351 Teil 4): Anzeige und Aktion «Vergessen» (Gestaltung folgt der UX-Vorgabe -354)
+                    if (p.id != 0L) {
+                        var knownTick by remember { mutableStateOf(0) }
+                        val nets = remember(p.id, knownTick, permTick) { com.sync2pc.app.sync.KnownNetStore.count(ctx, p.id) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(str(R.string.profile_known_nets, nets), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            if (nets > 0) TextButton(onClick = { com.sync2pc.app.sync.KnownNetStore.forget(ctx, p.id); knownTick++ }) {
+                                Text(str(R.string.profile_known_nets_forget))
+                            }
+                        }
+                        HintMore(str(R.string.profile_known_nets_hint))
+                    }
                 }
             }
-
             // Verschlüsselung (-146 Teil B): direkt unter «PC-Kennung», standardmässig eingeklappt
             if (show(Step.OPTIONS)) item {
                 val enc = p.encryption()
@@ -732,48 +757,25 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                         Triple(SmbEncryption.PREFERRED, R.string.enc_preferred, R.string.enc_preferred_sub),
                         Triple(SmbEncryption.REQUIRED, R.string.enc_required, R.string.enc_required_sub),
                     ).forEach { (m, title, sub) ->
-                        Row(Modifier.fillMaxWidth().clickable { p = p.copy(smbEncryption = m.name) }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = enc == m, onClick = { p = p.copy(smbEncryption = m.name) })
+                        val choose = {
+                            // Herabsetzen von «Erforderlich» ist sicherheitskritisch: erst nach Bestätigung
+                            if (enc == SmbEncryption.REQUIRED && m != SmbEncryption.REQUIRED) lowerEncTo = m
+                            else p = p.copy(smbEncryption = m.name)
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { choose() }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = enc == m, onClick = { choose() })
                             Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
                                 Text(str(title))
                                 Hint(str(sub))
                             }
                         }
                     }
-                }
-            }
-
-            if (show(Step.OPTIONS) && com.sync2pc.app.sync.NetworkRules.needsWifiName(pcModeNow())) item {
-                SectionCard(str(R.string.profile_wifi)) {
-                    // Standort nur, wenn ein WLAN eingetragen ist bzw. werden soll (Android braucht ihn für den WLAN-Namen)
-                    PermissionRows(perms, showDone = false, needs = PermNeeds(media = false, wifi = true, base = false))
-                    HintMore(str(R.string.profile_wifi_hint))
-                    if (p.ssids().isEmpty()) Text(str(R.string.wizard_missing_wifi), color = MaterialTheme.colorScheme.error)
-                    p.ssids().forEach { s ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(s, Modifier.weight(1f))
-                            IconButton(onClick = { p = p.copy(wifiSsids = Profile.joinLines(p.ssids() - s)) }) {
-                                Icon(Icons.Filled.Close, str(R.string.profile_remove))
-                            }
-                        }
-                    }
-                    if (currentSsid != null && !p.ssids().contains(currentSsid)) {
-                        OutlinedButton(onClick = { p = p.copy(wifiSsids = Profile.joinLines(p.ssids() + currentSsid)) }) {
-                            Text(str(R.string.profile_wifi_add_current, currentSsid))
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(newSsid, { newSsid = it }, label = { Text(str(R.string.profile_wifi_name)) },
-                            singleLine = true, modifier = Modifier.weight(1f))
-                        TextButton(enabled = newSsid.isNotBlank(), onClick = {
-                            p = p.copy(wifiSsids = Profile.joinLines(p.ssids() + newSsid.trim())); newSsid = ""
-                        }) { Text(str(R.string.profile_add)) }
-                    }
+                    Hint(str(R.string.prot_enc_auto_note))
                 }
             }
 
             if (isMirror && show(Step.OPTIONS)) item {
-                MirrorOptionsCard(pState, trashState, pollState, trashName)
+                MirrorOptionsCard(pState, trashState, trashName)
             }
 
             if (!isMirror && show(Step.OPTIONS)) item {
@@ -862,7 +864,7 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                                     // SYNC-20261111-235: Prüfung direkt bei «Weiter»; Fehlertext steht am Namensfeld
                                     showNameError = true
                                 }
-                                else if (ProfileWizard.numberBlocksStep(p, step, trashText, pollText, guardText)) {
+                                else if (ProfileWizard.numberBlocksStep(p, step, trashText, guardText)) {
                                     // -120: Fehlertext steht schon unter dem Feld; zusätzlich Hinweis, kein stilles Korrigieren
                                     showMissing = false
                                     Toast.makeText(ctx, str(R.string.profile_number_step_blocked), Toast.LENGTH_LONG).show()
@@ -958,6 +960,20 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(str(R.string.profile_created_text))
+                    // SYNC-20261115-352 (B10): einmaliger, ausblendbarer Hinweis nach dem Fotos-Assistenten
+                    if (p.type() != ProfileType.MIRROR && !gphotosTipGone && !ProtectNotes.gphotosTipDone(ctx)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            androidx.compose.material3.Icon(Icons.Filled.Info, null,
+                                modifier = Modifier.size(18.dp).padding(top = 2.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(str(R.string.prot_gphotos_tip), style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { ProtectNotes.setGphotosTipDone(ctx); gphotosTipGone = true }) {
+                                    Text(str(R.string.prot_understood))
+                                }
+                            }
+                        }
+                    }
                     if (id in learning) Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Text(str(R.string.profile_pc_learning), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall)
@@ -978,6 +994,26 @@ fun ProfileScreen(profileId: Long, onBack: () -> Unit, onSimulate: (Long) -> Uni
                     StackedButton(str(R.string.profile_simulate)) { createdId = null; onSimulate(id) }
                 }
             },
+        )
+    }
+    // Erklärung vor dem Systemdialog (muss in der App stehen); «Nicht jetzt» lässt die Länderordner aus
+    askLocationFor?.let { layout ->
+        AlertDialog(
+            onDismissRequest = { askLocationFor = null },
+            title = { DialogTitleText(str(R.string.loc_title)) },
+            text = { Text(str(R.string.loc_text)) },
+            confirmButton = {
+                DialogButtonColumn {
+                    StackedButton(str(R.string.loc_continue)) { askLocationFor = null; requestLocation(layout) }
+                    StackedButton(str(R.string.loc_not_now)) { askLocationFor = null }
+                }
+            },
+        )
+    }
+    lowerEncTo?.let { target ->
+        LessProtectionDialog(
+            onConfirm = { p = p.copy(smbEncryption = target.name); lowerEncTo = null },
+            onDismiss = { lowerEncTo = null },
         )
     }
     chargeWarnFor?.let {

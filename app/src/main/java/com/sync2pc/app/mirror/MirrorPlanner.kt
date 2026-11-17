@@ -15,7 +15,11 @@ enum class PlanKind { UPLOAD, DOWNLOAD, TRASH_LOCAL, TRASH_REMOTE, RECORD, DROP,
  * Grundsatz (Datenverlust): ohne gespeicherten Stand ([MirrorState] = null) wird nie gelöscht, nur übertragen oder gemerkt.
  */
 object MirrorPlanner {
-    data class Decision(val kind: PlanKind, val trashOther: Boolean = false)
+    /**
+     * [overruledDeletion] (R-D1, SYNC-20261114-337): Eine Löschung auf der Gegenseite wird nicht übernommen, weil diese Datei seit dem
+     * Sync-Stand geändert wurde; sie wird stattdessen übertragen (kein Papierkorb, zählt nicht zur Schutzbremse).
+     */
+    data class Decision(val kind: PlanKind, val trashOther: Boolean = false, val overruledDeletion: Boolean = false)
 
     suspend fun decide(
         l: LocalEntry?, r: RemoteEntry?, st: MirrorState?,
@@ -29,6 +33,9 @@ object MirrorPlanner {
             // war synchron, auf dem PC gelöscht
             return when {
                 dir == SyncDirection.UPLOAD -> Decision(PlanKind.UPLOAD)            // Ziel wiederherstellen
+                // R-D1: auf dem PC gelöscht, auf dem Handy aber geändert -> Änderung schlägt Löschung (nur BOTH)
+                propagate && dir == SyncDirection.BOTH && (l.size != st.localSize || l.modified != st.localModified) ->
+                    Decision(PlanKind.UPLOAD, overruledDeletion = true)
                 propagate -> Decision(PlanKind.TRASH_LOCAL)
                 dir == SyncDirection.BOTH -> Decision(PlanKind.UPLOAD)              // nichts verlieren
                 else -> Decision(PlanKind.DROP)                                     // PC → Handy: Handy-Kopie behalten
@@ -38,6 +45,9 @@ object MirrorPlanner {
             if (st == null) return if (dir.down) Decision(PlanKind.DOWNLOAD) else null // neu auf dem PC
             return when {
                 dir == SyncDirection.DOWNLOAD -> Decision(PlanKind.DOWNLOAD)
+                // R-D1: auf dem Handy gelöscht, auf dem PC aber geändert -> Änderung schlägt Löschung (nur BOTH)
+                propagate && dir == SyncDirection.BOTH && (r.size != st.remoteSize || r.modified != st.remoteModified) ->
+                    Decision(PlanKind.DOWNLOAD, overruledDeletion = true)
                 propagate -> Decision(PlanKind.TRASH_REMOTE)
                 dir == SyncDirection.BOTH -> Decision(PlanKind.DOWNLOAD)
                 else -> Decision(PlanKind.DROP)

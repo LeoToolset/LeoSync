@@ -1,10 +1,10 @@
 # Architektur – Sync2PC / LeoSync
 
-Technische Referenz der **aktuell implementierten** Architektur (Stand: Quellcode, App-Version aus `version.properties` (0.15.0), DB-Version 10). Maßgeblich ist der Quellcode; `docs/DECISIONS.md` liefert Hintergründe (DEC-IDs). Geplantes steht ausschliesslich in Abschnitt 14 und ist dort als solches gekennzeichnet.
+Technische Referenz der **aktuell implementierten** Architektur (Stand: Quellcode, App-Version aus `version.properties` (0.17.2; Änderungen bis dahin nachgeführt), Room-Datenbankversion 11). Maßgeblich ist der Quellcode; `docs/DECISIONS.md` liefert Hintergründe (DEC-IDs). Geplantes steht ausschliesslich in Abschnitt 14 und ist dort als solches gekennzeichnet.
 
 > Hinweis: Die frühere `docs/ARCHITECTURE.md` enthielt nur den Arbeitsauftrag für diese Dokumentation, keine Architektur. Sie wurde daher ersetzt.
 
-Sichtbarer App-Name: **LeoSync**. Repo, Paket (`com.sync2pc.app`), DB-Name (`sync2pc.db`) und Keystore-Alias heissen bewusst weiter *Sync2PC* (DEC-008; Änderung bedeutet Datenverlust bzw. eine neue App).
+Sichtbarer App-Name: **LeoSync**. Repo, Paket (`com.sync2pc.app`), DB-Name (`sync2pc.db`) und Keystore-Alias heissen bewusst weiter *Sync2PC* (DEC-008; Änderung bedeutet Datenverlust bzw. eine neue App). **Seit 0.19.0 (DEC-286):** Die `applicationId` ist auf `ch.leo.sync` (Debug `ch.leo.sync.debug`), der `namespace` und damit alle Kotlin-Pakete bleiben `com.sync2pc.app`; Umzug der Daten nur über Export/Import.
 
 ---
 
@@ -119,7 +119,7 @@ Sync2PC/
     src/androidTest/…       instrumentierter MigrationTest
   docs/                     Dokumentation (DECISIONS, SYNC-ENGINE, DATA-MODEL, TESTING, …)
   tools/                    PowerShell/C#-Werkzeuge: Builder (build.ps1), Icons/Animation, Geodaten,
-                            PC-Import (LeoSync-Import.*), Übersetzungstabelle
+                            PC-Import (LeoSync-Import.*, nicht mehr gepflegt, DEC-068), Übersetzungstabelle
   build.md, README.md, PATCHNOTES.md, PRIVACY_*.md
   version.properties        VERSION_MAJOR/MINOR/PATCH, UPDATE_REPO
 ```
@@ -136,7 +136,7 @@ Pakete unter `app/src/main/java/com/sync2pc/app/`:
 | `data/` | Room, Entitäten, DAO, Einstellungen, Passwort-Verschlüsselung, reine Profil-Logik |
 | `media/` | MediaStore-Scan, EXIF/Video-Metadaten, Datum aus Dateinamen |
 | `geo/` | Offline-Ländererkennung (Punkt-in-Polygon) |
-| `update/` | Selbst-Update über GitHub Releases |
+| `update/` | Selbst-Update über GitHub Releases *(seit 0.19.0 entfernt, DEC-286, Development SYNC-20261114-346)* |
 | `diag/` | Diagnose, Absturzberichte, Hersteller-Hinweise |
 | `backup/` | Export/Import von Profilen und Einstellungen |
 | `l10n/` | Sprache (DE/EN) und Textzugriff ausserhalb von Compose |
@@ -193,6 +193,8 @@ Legende Relevanz: **●** zentral, **○** unterstützend. Pfade relativ zu `app
 | `sync/TransferLocks.kt` | WLAN-/CPU-Wakelock nur während eines Laufs | `SyncWorker` | ○ |
 | `sync/Errors.kt` | Klassifiziert Netzwerk- gegenüber Datei-Fehlern; verständliche Fehlermeldungen (`friendlyError`) | Engines, UI | ● |
 | `sync/RunSummary.kt` | Kurztext eines Laufs für Verlauf und Benachrichtigung; `NOT_IDLE_KEYS` (Schlüssel, die einen Lauf „nicht ruhig“ machen, für `RunGrouping.isIdle`) | Engines, `RunGrouping` | ○ rein |
+| `sync/Problems.kt` | Meldungen je Ursache: `ProblemKind` (Stufen 1 bis 5), `ProblemStore` (Prefs `problems`, je Profil ein Eintrag), `ProblemGrouping` (DEC-296) | `SyncWorker`, `ui/MessagesCard.kt` | ● |
+| `sync/ForegroundCheck.kt` | Prüft per `ActivityManager.getRunningServices`, ob ein Lauf im Vordergrund läuft (DEC-297) | `SyncWorker` | ○ |
 
 ### 4.3 `mirror/` – Ordner-Spiegelung
 
@@ -229,6 +231,8 @@ Legende Relevanz: **●** zentral, **○** unterstützend. Pfade relativ zu `app
 
 ### 4.5 `update/`, `diag/`, `backup/`, `l10n/`
 
+> **Umgesetzt in 0.19.0 (DEC-286, Benutzerentscheid 2026-11-14):** Das Paket `update/` (die Dateien unten, dazu `ReleaseNotes`) ist entfernt zusammen mit `REQUEST_INSTALL_PACKAGES`, `UPDATE_REPO`, der Update-Seite, `Screen.Update`, dem Einstellungsbereich «Updates» und den zugehörigen `GlobalSettings`-Schlüsseln; die Aktualisierung kommt über Google Play. Die Tabelle darunter beschreibt den Stand bis 0.18.x. Neu seit 0.19.x: `sync/KnownNets.kt` (bekannte Netze), `smb/EncryptionAuto.kt`, `smb/SessionGuard.kt` (Antwortprüfung, DEC-292), `mirror/TransferIntegrity.kt`, `mirror/NameRules.kt`, `mirror/RenameMatcher.kt`, `media/MediaProbe.kt` und `media/AndroidMediaProbe.kt`, `ui/ProtectCards.kt`.
+
 | Datei | Verantwortlichkeit / Inhalt | Rel. |
 |---|---|---|
 | `update/UpdateChecker.kt` | Fragt das neueste GitHub-Release ab (`UpdateInfo`) | ○ |
@@ -251,6 +255,7 @@ Legende Relevanz: **●** zentral, **○** unterstützend. Pfade relativ zu `app
 |---|---|---|
 | `ui/MainActivity.kt` | Einzige Activity (`singleTop`, Hochformat). `sealed class Screen` (Navigationszustand), `AppRoot`, Splash, Intent-Verarbeitung (`Notifications.OPEN_*`, Installer-Status), Löschfluss | ● |
 | `ui/HomeScreen.kt`, `ui/HomeParts.kt` | Startseite: Status, Profile, Werkzeuge, Schutzbremse-Karten, Pause-Dialog; seit 0.13.0 Profilkarte mit Status „PC erkannt / noch nicht erkannt“ bei `GUID`/`BOTH`, WLAN-Zeile nur bei `WIFI`/`BOTH` | ● |
+| `ui/MessagesCard.kt`, `ui/MessagePager.kt` | Sammelkachel «Meldungen» (Blätterkachel, Passwort-Dialog je PC und Konto, Tipp-Seiten) und ihre Blätterlogik (DEC-296) | `sync/Problems.kt` | ● |
 | `ui/ProfileScreen.kt`, `ui/ProfileCards.kt`, `ui/ProfileParts.kt` | Profil anlegen/bearbeiten (Assistent, Mirror-/Foto-Optionen, Freigaben- und Ordnerauswahl; `RemoteFolderPicker` kann seit 0.11.3 Ordner unterhalb einer Freigabe anlegen, `SmbSession.ensureDir`, DEC-192; seit 0.13.0 Karte „PC-Kennung“ in `ProfileScreen` mit drei Modi und Status, WLAN-Karte nur bei `WIFI`/`BOTH`, „Verbindung testen“ mit Rückfrage bei Kennungswechsel) | ● |
 | `ui/SettingsScreen.kt` | Einstellungen in Rubriken (`SettingsSection`: NOTIFICATIONS, TRANSFER, PERMISSIONS, APP, UPDATES, DIAGNOSE), Sprache | ● |
 | `ui/TrashScreen.kt` | Papierkorb: wiederherstellen, aufräumen | ● |
@@ -285,7 +290,7 @@ Legende Relevanz: **●** zentral, **○** unterstützend. Pfade relativ zu `app
 - **Hintergrundverarbeitung** – ausschliesslich WorkManager plus System-Callbacks; kein eigener Dauerdienst für Synchronisierung. `PauseService` ist ein `dataSync`-Vordergrunddienst ohne eigene Laufzeitgrenze, der das Android-15-Tagesbudget für `dataSync` mit dem Vordergrunddienst des Sync-Workers teilt (Architecture SYNC-20261110-124/-141, R-BG1; Abschnitt 9).
 - **Einstellungen** – profilbezogen in `Profile` (Room), profilübergreifend in `GlobalSettings` (SharedPreferences „global“), kleinere Zustände in eigenen SharedPreferences („guard“, „purge“, „restore“, „lang“).
 - **Diagnose/Logging** – Lauf-Log in der DB (`SyncRun`, `LogEntry`), Diagnosetext (`Diagnostics`), lokaler Absturzbericht (`CrashReporter`). Es wird nichts automatisch übertragen.
-- **Updates (`update/`)** – GitHub Releases, tägliche Prüfung, Installation über `PackageInstaller`.
+- **Updates (`update/`)** – GitHub Releases, tägliche Prüfung, Installation über `PackageInstaller` *(entfernt, DEC-286)*.
 - **Lokalisierung (`l10n/`)** – Deutsch/Englisch, Texte ausschliesslich in `res/values*/strings_*.xml`.
 
 ### 5.1 Innenaufbau der grossen Dateien (vollständig gelesen)
@@ -360,7 +365,7 @@ Auffällige Kopplungen (Ist-Zustand, keine Wertung als Fehler):
 - Die Lese-Schleife für Teil-Hashes (Kanal lesen bis Puffer voll) existiert dreifach: `LocalTree.contentHash`, `LocalTree.readAt`, `SyncEngine.localLevelHash`.
 - `LocalTree.dirIds` ist ein Zwischenspeicher ohne allgemeine Invalidierung; die Instanz darf nicht über mehrere Läufe wiederverwendet werden.
 - `MirrorLock` wirkt nur innerhalb des Prozesses.
-- Teil-Prüfsumme, Ordnerregeln und Länderregeln existieren doppelt (Kotlin und `tools/LeoSyncImport.cs`/`.ps1`) und müssen synchron bleiben (DEC-021/024).
+- ~~Teil-Prüfsumme, Ordnerregeln und Länderregeln existieren doppelt (Kotlin und `tools/LeoSyncImport.cs`/`.ps1`) und müssen synchron bleiben (DEC-021/024).~~ Entfallen: Das PC-Import-Skript wird nicht mehr gepflegt (DEC-068); die Kotlin-Logik ist die einzige gepflegte Fassung.
 
 Möglichst unabhängig bleiben sollen: alle als „rein“ markierten Klassen (kein Android-Import, Unit-testbar), `SmbSession` (keine Profil-/UI-Logik) und `BackupCodec`.
 
@@ -401,7 +406,7 @@ Schutzbremse prüfen → `LocalTree` und `SmbSession` einlesen → 3-Wege-Plan a
 
 ### 7.4 Unterbruch und Fortsetzen
 
-Verliert das Handy das Ziel-WLAN, markiert `SyncWorker.markInterrupted()` den Zustand (`GlobalSettings.resumeOnWifi`), plant `enqueueResume` ein und startet `PauseService` (oder eine „Pausiert“-Benachrichtigung). Fortgesetzt wird über `WifiNetworkReceiver` *oder* den Resume-Auftrag, spätestens nach Ablauf von 24 h wird aufgegeben (gilt nur im Worker-Pfad; `PauseService` hat keine eigene Grenze, R-BG1).
+Verliert das Handy das Ziel-WLAN, markiert `SyncWorker.markInterrupted()` den Zustand (`GlobalSettings.resumeOnWifi`), plant `enqueueResume` ein und startet `PauseService` (oder eine „Pausiert“-Benachrichtigung). Fortgesetzt wird über `WifiNetworkReceiver` *oder* den Resume-Auftrag, spätestens nach Ablauf von 24 h wird aufgegeben (gilt nur im Worker-Pfad; `PauseService` begrenzt sich ab Android 15 auf 30 Minuten, DEC-294). Der Resume-Auftrag ist expedited; ein Wächter-Auftrag (`WORK_RUN_GUARD`, 10 min) setzt nach einem Prozess-Kill fort; im Doze verzögert sich das Fortsetzen (R-BG9, DEC-297).
 
 ---
 
@@ -434,6 +439,7 @@ Build: Android Gradle Plugin 9 mit eingebautem Kotlin, Compose-Compiler-Plugin u
 - **Services/Receiver:** `PauseService` (`foregroundServiceType=dataSync`), WorkManagers `SystemForegroundService` (dataSync, per `tools:node="merge"`), `WifiNetworkReceiver` (nicht exportiert), `BootReceiver` (exportiert; `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`), `FileProvider` für den Verlauf-Export.
 - **WorkManager:** Eindeutige Aufträge (Konstanten in `SyncScheduler`): `sync-auto`, `sync-manual`, `sync-followup`, `sync-share-retry`, `sync-resume`, `trigger-content`, `trigger-safety`, `trigger-remote-poll`, `pause-end`; außerdem `stale-check` (`StaleCheck`) und die Update-Prüfung (`UpdateWorker`). Automatische Läufe verlangen `NetworkType.UNMETERED` (optional Laden), mit eingeschaltetem Schalter `syncOffWifi` seit 0.11.5 `CONNECTED` (`SyncScheduler.autoConstraints`, DEC-126); manuelle `CONNECTED`. Einzelne Läufe laufen expedited bzw. als Foreground (`getForegroundInfo`, `setForeground`).
 - **Berechtigungen (Manifest):** Netzwerk/WLAN, Standort inkl. Hintergrund (nur zum Lesen der SSID), Medien (`READ_MEDIA_IMAGES/VIDEO`, `ACCESS_MEDIA_LOCATION`, Legacy-Storage begrenzt auf ältere SDKs), `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE(_DATA_SYNC)`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `REQUEST_INSTALL_PACKAGES` (Selbst-Update). Anzeige und Anforderung: `ui/Permissions.kt`, `ui/PermissionRows.kt`.
+  **Seit 0.19.0:** Mit DEC-286 entfallen `REQUEST_INSTALL_PACKAGES` und `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (die Akku-Ausnahme läuft über `ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`, die Systemliste); mit DEC-287 entfallen die Standortberechtigungen samt Hintergrund-Standort (kein WLAN-Name mehr, nur noch die PC-Kennung). Es bleiben Netzwerk, Medien (`READ_MEDIA_IMAGES/VIDEO`, `ACCESS_MEDIA_LOCATION` erst bei Länderordnern, DEC-289), `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE(_DATA_SYNC)`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`. Umsetzung: SYNC-20261114-346 und SYNC-20261115-351 (0.19.0).
 - **Benachrichtigungen:** zwei Kanäle (`sync_progress` niedrig, `sync_alerts` Standard) in `Notifications.createChannels`; eigene RemoteViews-Layouts `res/layout/notif*.xml`.
 - **Speicherzugriff:** MediaStore (Fotos/Videos), SAF mit dauerhafter Berechtigung (beliebige Ordner), SMB über Netzwerk. `allowBackup=false`.
 - **Kompatibilität:** minSdk 29 (Löschen: Android 10 direkt, 11+ per Systemdialog; Sprache: ab 13 System, davor eigener Weg); targetSdk 36 (Hochformat-Sperre auf grossen Bildschirmen dort wirkungslos, DEC-152). Zeitlimit des `dataSync`-Dienstes ab Android 15: Rückfallweg vorhanden, Wirksamkeit laut DECISIONS offen.
@@ -455,7 +461,7 @@ Build: Android Gradle Plugin 9 mit eingebautem Kotlin, Compose-Compiler-Plugin u
 | Neue Benachrichtigung | Methode und ggf. `OPEN_*` in `Notifications`, Behandlung in `MainActivity.handleIntent`; Schalter in `GlobalSettings` |
 | Diagnose erweitern | `diag/Diagnostics.kt` (keine Passwörter, Test: `DiagnosticsTest`); Hersteller-Hinweise: `diag/VendorHints.kt` |
 | Neue Sprache/Texte | `res/values*/strings_<bereich>.xml`, Parität prüft `StringsParityTest`; Zugriff ausserhalb von Compose über `l10n/Texts.kt` (`str`/`plural`) |
-| Neuer Updatemechanismus | `update/` |
+| Neuer Updatemechanismus | `update/` *(entfernt, Updates über Google Play, DEC-286)* |
 
 ---
 
@@ -471,7 +477,7 @@ Build: Android Gradle Plugin 9 mit eingebautem Kotlin, Compose-Compiler-Plugin u
 8. **SAF-Zeitstempel:** Werte aus `stat()` und `children()` nie mischen (DEC-137).
 9. **Eingriffe in den Papierkorb/Handy-Ordner** laufen über `MirrorLock` und warten auf einen laufenden Sync.
 10. **Reine Logik ohne Android-Abhängigkeit halten** und mit Unit-Test absichern.
-11. **Doppelte Logik** (Teil-Prüfsumme, Ordner-/Länderregeln) in `tools/LeoSyncImport.cs` bei Änderungen mitziehen.
+11. *(entfallen: Das PC-Import-Skript `tools/LeoSyncImport.cs` wird nicht mehr gepflegt, DEC-068; die Nummern bleiben stabil, weil andere Dokumente auf sie verweisen.)*
 12. **Kotlin-Falle:** kein `/**` innerhalb von Blockkommentaren (Build-Fehler, DEC-Risiko 10/30).
 13. **Zustände ausserhalb der Datenbank** (`GlobalSettings`, „guard“, „purge“, „restore“) werden bei Neuinstallation nicht wiederhergestellt und nur teilweise gesichert.
 14. **R8:** neue Bibliotheken mit Reflection brauchen Keep-Regeln in `proguard-rules.pro` und einen Release-Test.

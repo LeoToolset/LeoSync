@@ -93,7 +93,7 @@ class DiagnosticsTest {
         val r = Redactor()
         assertEquals("12:34:56 Version 0.12.4 und/oder 3 / 5 Dateien", r.scrub("12:34:56 Version 0.12.4 und/oder 3 / 5 Dateien"))
         assertEquals("at com.sync2pc.app.sync.SyncEngine.run(SyncEngine.kt:123)", r.scrub("at com.sync2pc.app.sync.SyncEngine.run(SyncEngine.kt:123)"))
-        assertEquals("https://api.github.com/repos/x/y", r.scrub("https://api.github.com/repos/x/y"))
+        assertEquals("https://<URL>", r.scrub("https://api.github.com/repos/x/y")) // jede Adresse wird maskiert (kein Selbst-Update mehr, DEC-286)
         assertEquals("999.1.1.1", r.scrub("999.1.1.1")) // keine gültige IP
     }
 

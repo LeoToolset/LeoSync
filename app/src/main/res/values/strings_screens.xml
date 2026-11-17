@@ -107,30 +107,8 @@
     <string name="dog_idle">Everything backed up</string>
     <string name="dog_syncing">Syncing</string>
 
-    <!-- Updates (UpdateScreen) -->
-    <string name="update_checking">Checking for updates…</string>
-    <string name="update_latest">You have the latest version (%1$s).</string>
-    <string name="update_downloading">Downloading version %1$s…</string>
-    <string name="update_installing">Starting installation…</string>
-    <string name="update_error">Error: %1$s</string>
-    <string name="update_installed">Installed</string>
-    <string name="update_source">Source: github.com/%1$s (releases)</string>
-    <string name="update_last_check">Last checked: %1$s</string>
-    <string name="update_daily">Check for updates daily</string>
-    <string name="update_daily_sub">Only on Wi-Fi, notification when found</string>
-    <string name="update_available">Version %1$s available</string>
-    <string name="update_size">Size: %1$s</string>
-    <string name="update_permission_hint">Android has to allow LeoSync once to install apps. Then use Back to return here.</string>
-    <string name="update_permission">Grant permission</string>
-    <string name="update_install">Download and install</string>
-    <string name="update_install_hint">Android asks for confirmation. After the update, open LeoSync again.</string>
 
     <!-- Datenbank (SyncDao) -->
     <string name="run_dangling_log">Interrupted – the app was closed (e.g. by an update). The rest follows at the next sync.</string>
     <string name="run_dangling">Interrupted – app was closed (e.g. update), rest follows at the next sync</string>
-    <string name="update_offline">Could not check for updates. No internet connection. Connect to Wi-Fi and try again.</string>
-    <string name="update_check_again">Check again</string>
-    <string name="update_check_now">Check now</string>
-    <string name="update_changes_link">View changes on GitHub</string>
-    <string name="update_download_cancelled">Download cancelled.</string>
 </resources>

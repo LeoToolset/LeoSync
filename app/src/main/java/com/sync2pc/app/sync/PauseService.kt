@@ -28,6 +28,11 @@ import kotlinx.coroutines.launch
  * gründlich, dass weder WLAN-Broadcast noch Aufgabenplaner sie wieder wecken).
  * Der Dienst wartet nur (kein Rechnen, kein Netzwerkverkehr) und startet den Sync, sobald
  * eines der Ziel-WLANs wieder verbunden ist.
+ *
+ * Ab Android 15 (API 35) beendet sich der Dienst nach [PausePolicy.LIMIT_MILLIS] (30 min) selbst (SYNC-20261115-389, R-BG1):
+ * Android begrenzt alle dataSync-Vordergrunddienste der App zusammen auf 6 h je 24 h, und eine stundenlange Pause würde das
+ * Budget verbrauchen, das der Nachhol-Lauf braucht. Danach gilt wie bei [onTimeout]: normale «Pausiert»-Anzeige, der
+ * Fortsetzen-Auftrag und der WLAN-Broadcast setzen fort. Android 14 und älter: keine eigene Grenze.
  */
 class PauseService : Service() {
 
@@ -65,6 +70,11 @@ class PauseService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var checkJob: Job? = null
+    /** Letzter Stand aus onStartCommand: für die normale Anzeige, wenn Android das Zeitlimit des Dienstes erreicht (R-BG3, -334) */
+    private var lastProgress: SyncProgress? = null
+    private var wifiNames: String = ""
+    /** Läuft ab dem ersten Start; wird bei weiteren onStartCommand derselben Laufzeit nicht zurückgesetzt */
+    private var limitJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -76,6 +86,7 @@ class PauseService : Service() {
             )
         }
         val wifi = intent?.getStringExtra(EXTRA_WIFI) ?: ""
+        lastProgress = last; wifiNames = wifi
         try {
             ServiceCompat.startForeground(
                 this, Notifications.ID_PAUSED, Notifications.pausedNotification(this, last, wifi),
@@ -88,6 +99,8 @@ class PauseService : Service() {
             return START_NOT_STICKY
         }
         registerWifiWatch()
+        val limit = PausePolicy.limitMillis(android.os.Build.VERSION.SDK_INT)
+        if (limit != null && limitJob == null) limitJob = scope.launch { delay(limit); endPause() }
         return START_NOT_STICKY
     }
 
@@ -106,33 +119,32 @@ class PauseService : Service() {
         scheduleCheck() // falls das WLAN schon wieder da ist
     }
 
-    /** Prüft (gebündelt) ob ein Ziel-WLAN verbunden ist; der Name kommt oft erst nach ein paar Sekunden. */
+    /** Prüft (gebündelt), ob wieder ein WLAN verbunden ist; danach entscheidet der Lauf (PC-Kennung, bekannte Netze). */
     private fun scheduleCheck() {
         if (checkJob?.isActive == true) return
         checkJob = scope.launch {
             val ctx = applicationContext
-            for (i in 0 until 6) {
-                if (!GlobalSettings(ctx).resumeOnWifi) { stopSelf(); return@launch } // anderweitig fortgesetzt/abgebrochen
-                if (WifiHelper.isOnWifi(ctx)) {
-                    val ssid = WifiHelper.currentSsid(ctx)
-                    val targets = com.sync2pc.app.data.AppDatabase.get(ctx).dao().profiles().filter { it.enabled }
-                    // GUID-Profile: jedes WLAN genügt; WIFI/BOTH: Name in der Liste (unlesbar = noch warten)
-                    if (targets.any { NetworkRules.wifiTriggerMatches(it.pcMode(), ssid, it.ssids(), unreadableMatches = false) }) {
-                        SyncScheduler.enqueueAuto(ctx, com.sync2pc.app.l10n.Msg.of(
-                            if (ssid != null) com.sync2pc.app.R.string.trigger_resume_wifi else com.sync2pc.app.R.string.trigger_resume,
-                            *(if (ssid != null) arrayOf<Any>(ssid) else emptyArray())))
-                        stopSelf()
-                        return@launch
-                    }
-                    if (ssid != null) return@launch // anderes WLAN -> weiter warten
-                } else return@launch
-                delay(3_000)
+            if (!GlobalSettings(ctx).resumeOnWifi) { stopSelf(); return@launch } // anderweitig fortgesetzt/abgebrochen
+            if (!WifiHelper.isOnWifi(ctx)) return@launch
+            // Jedes WLAN löst aus (SYNC-20261115-351): ob der PC dort erreichbar und der richtige ist, prüft der Lauf
+            val targets = com.sync2pc.app.data.AppDatabase.get(ctx).dao().profiles().filter { it.enabled }
+            if (targets.isNotEmpty()) {
+                SyncScheduler.enqueueAuto(ctx, com.sync2pc.app.l10n.Msg.of(com.sync2pc.app.R.string.trigger_resume))
+                stopSelf()
             }
         }
     }
 
     /** Android 15+: Zeitlimit für dataSync-Dienste erreicht -> Aufgabenplaner übernimmt */
     override fun onTimeout(startId: Int, fgsType: Int) {
+        endPause()
+    }
+
+    /** Gemeinsam für das Android-Zeitlimit und die eigene Grenze: Vordergrund weg, «Pausiert» als normale Benachrichtigung, Dienst beenden */
+    private fun endPause() {
+        // Die Vordergrund-Anzeige verschwindet mit dem Dienst: dieselbe «Pausiert»-Anzeige als normale Benachrichtigung zeigen
+        try { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) } catch (ignored: Exception) {}
+        Notifications.showPaused(this, lastProgress, wifiNames)
         stopSelf()
     }
 
@@ -144,4 +156,23 @@ class PauseService : Service() {
         scope.cancel()
         super.onDestroy()
     }
+}
+
+/**
+ * Reine Entscheidungen zum Pausendienst (SYNC-20261115-389, getestet in PausePolicyTest).
+ */
+object PausePolicy {
+    /** Eigene Laufzeitgrenze ab Android 15 */
+    const val LIMIT_MILLIS = 30 * 60_000L
+
+    /** null = keine eigene Grenze (Android 14 und älter), sonst [LIMIT_MILLIS] ab API 35 */
+    fun limitMillis(sdkInt: Int): Long? = if (sdkInt >= 35) LIMIT_MILLIS else null
+
+    /**
+     * Darf [PauseService] gestartet werden? Ab API 35 nicht für einen Fortsetzen-Lauf, der nur feststellt, dass er noch im falschen
+     * WLAN ist ([resumeRun] und nicht [midRun]): sonst startete jeder 15-Minuten-Fortsetzen-Lauf die 30 Minuten neu (Schleife, die das
+     * 6-h-Budget verbraucht). Eine neue Unterbrechung eines laufenden Syncs startet ihn immer.
+     */
+    fun mayStart(sdkInt: Int, resumeRun: Boolean, midRun: Boolean): Boolean =
+        limitMillis(sdkInt) == null || !resumeRun || midRun
 }

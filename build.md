@@ -6,6 +6,14 @@
 2. **`build.bat`** doppelklicken.
 3. Die fertige APK liegt unter `releases\LeoSync-<version>.apk`.
 
+> **Umstellung «nur Play Store» (DEC-286, Benutzerentscheid 2026-11-14; umgesetzt in 0.19.0 laut Development SYNC-20261114-346, Release-Prüfung QA SYNC-20261114-347 offen).** Die folgenden Punkte gelten seit 0.19.0; Abschnitte weiter unten, die noch GitHub-Releases oder das Selbst-Update beschreiben, sind historisch. Der Builder legt keinen Schlüssel mehr selbst an (Abbruch mit Hinweis, wenn `keystore.properties` fehlt; der Inhaber legt den Upload-Schlüssel an) und überschreibt oder löscht nie Dateien in `releases\`; `.gitignore` enthält `releases/*.aab`.
+> - **Paket:** `ch.leo.sync` (Debug `ch.leo.sync.debug`); der `namespace` bleibt `com.sync2pc.app`. Adb-Aufrufe brauchen dann die volle Klassenangabe, z. B. `am start -n ch.leo.sync.debug/com.sync2pc.app.ui.MainActivity`. Testbefehle (`--tests "com.sync2pc.app.<Klasse>"`) bleiben gültig.
+> - **Ausgaben des Builders** in `releases\`: `LeoSync-<version>.aab` (für Google Play, `bundleRelease`), `LeoSync-<version>.apk` (signiert, für eigene Tests) und `LeoSync-<version>-debug.apk`.
+> - **Signierung:** Play App Signing mit einem neuen Upload-Schlüssel; der Upload-Schlüssel und `keystore.properties` liegen nur lokal und nie im Repo.
+> - **Kein Selbst-Update, keine GitHub-Releases mehr:** Der Abschnitt «Release auf GitHub veröffentlichen» unten und die Punkte 11 und 12 der Release-Checkliste gelten nur noch für die alten Versionen `com.sync2pc.app` (Geschichte, keine Pflege). `UPDATE_REPO` in `version.properties` entfällt.
+> - **Release-Ablauf neu:** AAB bauen, in der Play-Konsole hochladen (Inhaber). Texte und Begründungen für die Konsole: `docs/play-console.md`. Das signierte Release-AAB bzw. die APK prüft QA auf R8-Minify, Freigabenliste (dcerpc), Verschlüsselung (BouncyCastle) und Msg-Lokalisierung (`res/raw/keep.xml`).
+> - **Umzug von der alten App** nur per Export/Import (siehe Hilfe, Abschnitt «Von der alten LeoSync-App umziehen»).
+
 ## Voraussetzungen
 
 | Komponente | Version | Hinweis |
@@ -175,6 +183,8 @@ gradlew.bat testDebugUnitTest assembleRelease
 Alternativ das Projekt in Android Studio öffnen: *File → Open → Projektordner*.
 
 ## Release auf GitHub veröffentlichen (für Selbst-Updates)
+
+> **Historisch (DEC-286):** Seit 0.19.0 entfällt dieser Weg; GitHub-Releases `com.sync2pc.app` sind nur noch Geschichte. `UPDATE_REPO` ist aus `version.properties` entfernt.
 
 Die App holt Updates aus dem **neuesten Release** des eingestellten GitHub-Repositorys.
 

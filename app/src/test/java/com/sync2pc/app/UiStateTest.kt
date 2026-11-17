@@ -39,7 +39,7 @@ class UiStateTest {
     fun bildschirm_rundreise() {
         val alle = listOf(
             Screen.Home, Screen.Settings(SettingsSection.entries.first()), Screen.ProfileEdit(0), Screen.ProfileEdit(12),
-            Screen.Decisions, Screen.Preview(3), Screen.Log, Screen.Stats, Screen.Update, Screen.Conflicts,
+            Screen.Decisions, Screen.Preview(3), Screen.Log, Screen.Stats, Screen.Conflicts,
             Screen.FreeSpace, Screen.Trash,
         )
         for (s in alle) assertEquals(s, MainActivity.decodeScreen(MainActivity.encodeScreen(s)))

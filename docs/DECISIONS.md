@@ -200,6 +200,8 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - DEC-233: Sonderaufträge bei belegter Sync-Sperre: Wiederholung statt Nachlauf-Merker
 - DEC-236: Fehler beim Speichern des Nachlauf-Merkers: nur Diagnose-Log
 - DEC-237: «Verschlüsselung nicht verfügbar» bei automatischen Läufen: einmal je Profil bis zum nächsten Erfolg
+- DEC-294: PauseService ab Android 15 auf 30 Minuten begrenzt
+- DEC-297: Läufe im Hintergrund: Vordergrund früh anfordern, Fortsetzen beschleunigen, Wächter-Auftrag; Lauf ohne Vordergrund akzeptiert
 
 **10. Benutzeroberfläche und UX**
 
@@ -284,6 +286,28 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - DEC-269: Papierkorb-Ansicht: Seitenfilter «Anzeigen» und erweiterter Wiederherstellen-Dialog
 - DEC-270: Statussymbole WLAN und PC auf der Profilkachel
 - DEC-271: Papierkorb: «Öffnen» für Dateien auf dem Handy
+- DEC-272: Ein Nachhol-Lauf je Fotoserie und globales Prüfintervall für Ordner-Profile
+- DEC-273: Neues App-Symbol «Leo im Sync-Ring» und Play-Store-Assets
+- DEC-274: «Änderung schlägt Löschung» im beidseitigen Ordner-Sync
+- DEC-275: Google Fotos «Speicherplatz freigeben»: Hinweis in Einrichtung und Hilfe
+- DEC-276: Windows-unzulässige Namen im Ordner-Sync überspringen
+- DEC-277: Verschlüsselung merken und Nachweis des Servers über den Sitzungsschlüssel
+- DEC-278: Kein automatischer Lauf über mobile Daten/VPN im Roaming
+- DEC-279: BSSID als Prüfung verworfen, «WLAN-Name + PC-Kennung» hervorheben
+- DEC-280: Umbenennen und Verschieben erkennen (Ordner-Sync)
+- DEC-281: Speicherorte ohne Änderungszeit: Verlaufshinweis
+- DEC-282: Netz-Fingerabdruck für Profile «Nur PC-Kennung»
+- DEC-283: Gast- und anonyme SMB-Sitzungen bei konfiguriertem Benutzer ablehnen
+- DEC-284: Laufwerkskennung der PC-Freigabe merken (Schutzbremse «Anderes Laufwerk»)
+- DEC-285: Computername aus der Anmeldeaushandlung nicht umsetzen; fachlich verworfene Ansätze
+- DEC-287: WLAN-Teil entfällt, PC-Kennung als einzige Erkennung; bekannte Netze ohne Berechtigung
+- DEC-288: Schutz-Stopp-Karten: Verschlüsselung/Signierung abgelehnt, automatische Umstellung, anderes Laufwerk
+- DEC-289: Einrichtungskarte nur Kernberechtigungen, «Standort in Fotos» bei Bedarf, PC-Erkennung und «Bekannte Netze» im Profil
+- DEC-290: Umzug von der alten App und Checkliste «Nach dem Import»
+- DEC-291: Weitere freigegebene UX-Hinweise: Papierkorb-Zustand, Anleitung «Erforderlich», Konflikt-Auflösung, Speicher-Tipp, Updates über Google Play
+- DEC-292: SMB-Antwortprüfung oberhalb von smbj: keine Klartext-Antworten in verschlüsselten Sitzungen, Signierpflicht nach beobachteter Signierung
+- DEC-295: Akku-Hinweis als Tipp-Karte, WLAN-Symbol auf der Profilkarte entfällt
+- DEC-296: Meldungen je Ursache und Sammelkachel «Meldungen» auf der Startseite
 
 **11. Lokalisierung und Sprache**
 
@@ -310,12 +334,12 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - DEC-080: Verlauf als Textdatei über das Android-Teilen-Menü exportieren
 - DEC-081: Lokaler Absturzbericht in der Diagnose
 - DEC-089: Sicherung von Profilen, Einstellungen und Sync-Status (Export/Import)
-- DEC-200: Sicherheitsprüfung mit claude-security *(Proposed)*
+- DEC-200: Sicherheitsprüfung mit claude-security *(Rejected)*
 - DEC-222: SMB3-Verschlüsselung pro Profil (Aus / Wenn möglich / Erforderlich)
 
 **14. Verteilung: Updates, Play Store und Support**
 
-- DEC-056: Selbst-Update über GitHub Releases mit Installation per Tippen
+- DEC-056: Selbst-Update über GitHub Releases mit Installation per Tippen (ersetzt durch DEC-286)
 - DEC-059: Neustart nach dem Update mit Benachrichtigung als Rückfall
 - DEC-107: Update-Quelle fest eingebaut
 - DEC-109: Ziel Play Store; Vorbereitung beschlossen, aber nicht in 0.4.0
@@ -323,8 +347,10 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - DEC-111: Play-Protect-Sperre per Einspruch klären, nicht umgehen
 - DEC-121: Feedback in der Testphase per E-Mail-Knopf „Problem melden“
 - DEC-123: Kontaktadresse `leotools@protonmail.com`
-- DEC-124: Nur die Play-Variante erhält `ch.leo.sync`
+- DEC-124: Nur die Play-Variante erhält `ch.leo.sync` (ersetzt durch DEC-286)
 - DEC-197: Hilfe & Produktseite
+- DEC-286: Nur Play Store, keine Varianten
+- DEC-293: Umzug zu LeoToolset (Produktseite, Veröffentlichungsordner)
 
 **15. Build, Tests, Versionierung und Arbeitsregeln**
 
@@ -445,7 +471,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 | DEC-053 | Implemented | 4. Dateiübertragung und SMB |
 | DEC-054 | Implemented | 9. Android und Hintergrundprozesse |
 | DEC-055 | Implemented | 9. Android und Hintergrundprozesse |
-| DEC-056 | Implemented | 14. Verteilung: Updates, Play Store und Support |
+| DEC-056 | Superseded | 14. Verteilung: Updates, Play Store und Support |
 | DEC-057 | Rejected | 16. Verworfene und überholte Lösungsansätze |
 | DEC-058 | Rejected | 16. Verworfene und überholte Lösungsansätze |
 | DEC-059 | Implemented | 14. Verteilung: Updates, Play Store und Support |
@@ -513,7 +539,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 | DEC-121 | Accepted | 14. Verteilung: Updates, Play Store und Support |
 | DEC-122 | Rejected | 16. Verworfene und überholte Lösungsansätze |
 | DEC-123 | Accepted | 14. Verteilung: Updates, Play Store und Support |
-| DEC-124 | Accepted | 14. Verteilung: Updates, Play Store und Support |
+| DEC-124 | Superseded | 14. Verteilung: Updates, Play Store und Support |
 | DEC-125 | Superseded | 16. Verworfene und überholte Lösungsansätze |
 | DEC-126 | Accepted | 9. Android und Hintergrundprozesse |
 | DEC-127 | Implemented | 8. Lösch- und Wiederherstellungslogik |
@@ -589,7 +615,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 | DEC-197 | Implemented | 14. Verteilung: Updates, Play Store und Support |
 | DEC-198 | Rejected | 16. Verworfene und überholte Lösungsansätze |
 | DEC-199 | Rejected | 16. Verworfene und überholte Lösungsansätze |
-| DEC-200 | Proposed | 13. Sicherheit, Datenschutz und Diagnose |
+| DEC-200 | Rejected | 13. Sicherheit, Datenschutz und Diagnose |
 | DEC-201 | Accepted | 2. Synchronisationsengine und 3-Wege-Abgleich |
 | DEC-202 | Implemented | 6. Datenbank und Datenmodell |
 | DEC-203 | Implemented | 13. Sicherheit, Datenschutz und Diagnose |
@@ -627,6 +653,8 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 | DEC-235 | Implemented | 10. Benutzeroberfläche und UX |
 | DEC-236 | Implemented | 9. Android und Hintergrundprozesse |
 | DEC-237 | Implemented | 9. Android und Hintergrundprozesse |
+| DEC-294 | Implemented | 9. Android und Hintergrundprozesse |
+| DEC-297 | Implemented | 9. Android und Hintergrundprozesse |
 | DEC-238 | Implemented | 2. Synchronisationsengine und 3-Wege-Abgleich |
 | DEC-239 | Implemented | 3. Konflikterkennung und Konfliktbehandlung |
 | DEC-240 | Accepted | 15. Build, Tests, Versionierung und Arbeitsregeln |
@@ -661,6 +689,30 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 | DEC-269 | Implemented | 10. Benutzeroberfläche und UX |
 | DEC-270 | Implemented | 10. Benutzeroberfläche und UX |
 | DEC-271 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-272 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-273 | Accepted | 10. Benutzeroberfläche und UX |
+| DEC-274 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-275 | Accepted | 10. Benutzeroberfläche und UX |
+| DEC-276 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-277 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-278 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-279 | Accepted | 10. Benutzeroberfläche und UX |
+| DEC-280 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-281 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-282 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-283 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-284 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-285 | Rejected | 10. Benutzeroberfläche und UX |
+| DEC-286 | Implemented | 14. Verteilung: Updates, Play Store und Support |
+| DEC-287 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-288 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-289 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-290 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-291 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-292 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-293 | Accepted | 14. Verteilung: Updates, Play Store und Support |
+| DEC-295 | Implemented | 10. Benutzeroberfläche und UX |
+| DEC-296 | Implemented | 10. Benutzeroberfläche und UX |
 
 ---
 
@@ -1739,6 +1791,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Begründung:** Android gibt die SSID nur mit Standortberechtigung heraus.
 - **Alternativen:** —
 - **Konsequenzen:** Fehlt eine Berechtigung, gibt es keinen Auto-Sync; der Grund wird angezeigt (DEC-067).
+- **Aktualisierung (2026-11-15, DEC-287, Benutzerentscheid):** Die WLAN-Erkennung über den Namen entfällt ganz: keine Standortberechtigung, kein «Immer zulassen», kein Warten (15 s) auf den WLAN-Namen. Die Erkennung läuft nur noch über die PC-Kennung (DEC-204). Umsetzung: Development SYNC-20261115-351; bis dahin gilt der beschriebene Stand der Version 0.17.x.
 - **Betroffene Komponenten:** `WifiHelper.currentSsid`, `SyncWorker`, `ui/Permissions.kt`
 - **Abhängigkeiten:** DEC-043
 
@@ -1793,7 +1846,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Entscheidung:** `PauseService` ist ein dataSync-Vordergrunddienst mit der Anzeige „Pausiert – wartet auf WLAN …“ und eigener ID 1008. Er registriert einen eigenen NetworkCallback und startet den Sync, sobald das Ziel-WLAN zurück ist. Rückfall ist eine normale Benachrichtigung; ab Android 15 beendet ihn `onTimeout` (im Code bei 0.14.7 nur `stopSelf()`, ohne Rückfall-Benachrichtigung; Ist-Stand nach Architecture SYNC-20261110-124/-141, R-BG3).
 - **Begründung:** Wunsch des Inhabers. Der Feldtest zeigte, dass das Gerät die App ohne sichtbare Anzeige zu stark einschränkt.
 - **Alternativen:** reine Benachrichtigung (DEC-051); nur WorkManager (DEC-050).
-- **Konsequenzen:** Ab Android 15 gilt ein Zeitlimit von 6 Stunden pro Tag für dataSync; danach bleibt nur noch der Rückfall.
+- **Konsequenzen:** Ab Android 15 gilt ein Zeitlimit von 6 Stunden pro Tag für dataSync; danach bleibt nur noch der Rückfall. **Aktualisierung (2026-11-15):** Ab Android 15 begrenzt sich der Dienst selbst auf 30 Minuten (DEC-294); Zielkonflikt mit dem Wunsch der langen Pausenanzeige siehe dort.
 - **Betroffene Komponenten:** `sync/PauseService.kt`, `Notifications.pausedNotification/showPaused`, `AndroidManifest.xml`
 - **Abhängigkeiten:** DEC-049, DEC-050
 
@@ -1816,6 +1869,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Begründung:** Ohne die Ausnahme ist ein Vordergrundstart aus dem Hintergrund (Android 12+) nicht erlaubt, und Doze kann das Netz sperren.
 - **Alternativen:** —
 - **Konsequenzen:** Nicht konform mit den Play-Richtlinien ohne Begründung (für den Play Store relevant, siehe B).
+- **Aktualisierung (2026-11-15, DEC-286, DEC-289, DEC-295):** Teilweise überholt. Der direkte Dialog `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` entfällt (nur noch die Systemliste, DEC-286). Die Akku-Ausnahme ist kein Pflichtpunkt der Karte «Einrichtung unvollständig» mehr, sondern eine neutrale, dauerhaft ausblendbare Tipp-Karte (DEC-295); nur Berechtigungen für Medien und Benachrichtigungen bleiben Pflicht.
 - **Betroffene Komponenten:** `ui/Permissions.kt`, `HomeScreen.PermissionCard`, `SettingsScreen`
 - **Abhängigkeiten:** DEC-043, DEC-052
 
@@ -1914,6 +1968,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
   - **Entscheid Inhaber 2026-11-08 (Development -025, „so belassen“):** Bereits geplante `WORK_RESUME`/`WORK_FOLLOWUP` behalten nach einem Schalterwechsel ihre alte Netzbedingung (`onOffWifiChanged` plant nur das Sicherheitsnetz neu und verwirft die Wartezeit). AUS→EIN: Aufträge warten weiter auf WLAN (`UNMETERED`), bis der nächste Auslöser kommt (Verzögerung, vom Inhaber akzeptiert). EIN→AUS: harmlos (Auftrag läuft an, Worker beendet sich). Kein Datenverlust; `enqueueResume`/`enqueueFollowUp` bleiben unverändert. Quelle: Rückmeldung Development/QA, nur Quelltextanalyse, nicht auf dem Gerät belegt.
   - Hinweis auf Datenverbrauch in der App; 0.11.6 nennt zusätzlich mögliche Kosten beim Mobilfunkabo (z. B. Ausland) und verwirft beim Umschalten die Wartezeit „PC nicht erreichbar“ (`cancelShareRetry`).
   - Folgeauftrag SYNC-20261108-019 (Wiederholungen über Mobilfunk begrenzen) umgesetzt in 0.11.7 (siehe Präzisierung 0.11.7 oben).
+  - **Aktualisierung (2026-11-15, DEC-287, Benutzerentscheid):** Über mobile Daten bzw. VPN ist die PC-Kennung Pflicht (es gibt keine Profile mehr ohne sie); Roaming bleibt ausgeschlossen (DEC-278). Mobilfunk bekommt keinen Netz-Fingerabdruck. Umsetzung: SYNC-20261115-351.
 - **Betroffene Komponenten:** `sync/NetworkRules.kt` (0.11.7), `sync/WifiHelper.kt` (`onAllowedNetwork`), `sync/SyncScheduler.kt` (`autoConstraints`), `sync/SyncWorker.kt`, `GlobalSettings.syncOffWifi`
 - **Abhängigkeiten:** DEC-044, DEC-109, DEC-204
 
@@ -1933,7 +1988,8 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Alternativen:** Speicherung in Prefs/Einstellungen ohne Schema-Änderung – verworfen: Zustand ausserhalb des Profils, verwaist beim Löschen des Profils, beim Einspielen einer Sicherung wäre eine Bindung an die Profil-ID nötig.
 - **Konsequenzen:** DB v8 und eine erweiterte Sicherung (abwärtskompatibel, `VERSION` 1). Befund F4: Die Kennung ist nicht geheim (unverschlüsselt in der Aushandlung); sie schützt zuverlässig gegen einen fremden Server in fremdem Netz, nicht gegen einen gezielten Angreifer, der sie zuvor im eigenen Netz las (dieselbe Schwäche wie beim WLAN-Namen); angemeldet wird per NTLM (offline knackbare Antwort, kein Klartextpasswort). Sicherheitsaussage je Modus: `WIFI` behält die bekannte Schwäche (fremdes Netz mit gleichem Namen und gleicher IP), `GUID` und `BOTH` prüfen vor dem Senden der Zugangsdaten. **Restrisiken:** Akku bei `GUID` in fremden WLANs (Test ca. 1 min je Verbindung, dann alle 30 min); Stabilität der Kennung bei Samba/NAS ungeprüft. Kritische Änderung → Review und QA (Datenverlust/Sicherheit). Quelle: Rückmeldung Architecture, Code und smbj-Bibliothek von Architecture geprüft, von Documentation nicht selbst nachgeprüft.
 - **Betroffene Komponenten:** `smb/SmbSession.kt` (mit `PcStore`), `sync/PcIdentity.kt` (inkl. `PcIdentityException`), `sync/SyncWorker.kt`, `sync/NetworkRules.kt`, `sync/Receivers.kt`, `sync/PauseService.kt`, `ui/Permissions.kt`, `data/*` (`Profile`, `AppDatabase.MIGRATION_7_8`, `SyncDao`), `backup/BackupCodec`, `diag/Diagnostics`, `ui/ProfileScreen.kt`, `ui/ProfileParts.kt`, `ui/HomeParts.kt`
-- **Abhängigkeiten:** DEC-044, DEC-045, DEC-048, DEC-084, DEC-109, DEC-126, DEC-190; geändert durch DEC-205
+- **Aktualisierung (2026-11-15, DEC-287, Benutzerentscheid, Umsetzung SYNC-20261115-351):** Die Modi `WIFI` (nur WLAN-Name) und `BOTH` entfallen; es gibt nur noch die PC-Kennung (`GUID`). Der Import einer alten Sicherung bildet `WIFI` und `BOTH` auf `GUID` ab (Verlaufseintrag «PC-Erkennung umgestellt»); ohne bekannte Kennung erscheint am Profil der Hinweis «Einmal ‹Verbindung testen›» (DEC-289, DEC-290). Die Punkte 1, 5 und 6 oben (Modus je Profil, WLAN-Liste, Eignung je Modus) beschreiben bis zur Umsetzung den Stand 0.17.x.
+- **Abhängigkeiten:** DEC-044, DEC-045, DEC-048, DEC-084, DEC-109, DEC-126, DEC-190; geändert durch DEC-205, DEC-287
 
 ### DEC-205: PC-Kennung nur beim Speichern und in „Verbindung testen“ lernen
 - **Status:** Implemented (im Code umgesetzt in 0.13.1, Development SYNC-20261109-055 Punkt 6; APK 0.13.1 vorhanden, `PcLoginTest`/`PcGuidDaoTest` grün, Gerätetests G11/G12 durch QA belegt (SYNC-20261109-053). „Implemented“ heisst nur „im Code umgesetzt“; offen als Prüfung: G7, Stabilität der Kennung bei Samba/NAS)
@@ -1954,7 +2010,8 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Konsequenzen:** Keine Schemaänderung. Manueller Sync und wiederhergestellte Sicherungen lernen nicht mehr; der Benutzer muss das Profil speichern oder testen. **Restrisiken:** (R1) Speichern oder Test bei `GUID` in einem fremden Netz mit gleicher IP sendet einmal die NTLM-Antwort; kein dauerhaftes Vertrauen, ausser der fremde Server akzeptiert beliebige Anmeldungen (Gast, Samba „map to guest“) und hat eine Freigabe gleichen Namens. (R2) Die Kennung ist nicht geheim und in der Aushandlung fälschbar (unverändert, DEC-204). (R3) Häufiger „noch nicht erkannt“, Hinweistexte nötig. (R4) `BOTH` ohne Standortfreigabe kann nicht lernen. (R5) Lernen nach dem Speichern läuft nebenläufig; ein sofortiger manueller Start kann es knapp verpassen (im Assistenten gemildert, Punkt 5). (R6) Nichts im Gerät geprüft. Quelle: Rückmeldung Architecture (SYNC-20261109-058), von Documentation nicht selbst nachgeprüft.
 - **Umsetzungsentscheidungen (Development SYNC-20261109-055, mitgeteilt via -059):** (a) Das Lernen im Modus `WIFI` bleibt still, erzeugt aber nie Vertrauen (Punkt 7). (b) Hostwechsel im Editor: kein Lernen und kein Neuvertrauen, solange der Host ungespeichert ist (Lernen/Neuvertrauen nur, wenn der Host der Verbindung dem gespeicherten Host des Profils entspricht). (c) Einrichtungsausnahme: unter `SETUP` wird bei `GUID` ohne bekannte Kennung in jedem Netz angemeldet (Restrisiko R1 aus -058), bei `BOTH` nur im eingetragenen WLAN. (d) Abgewiesene Profile (und Fehler der Vorab-Prüfung) warten ohne Timer (eine Meldung je Profil); nicht erreichbare PCs setzen den Timer nur, wenn kein Profil lief bzw. bei Verbindungsabbruch mitten im Lauf (DEC-126/DEC-048 unverändert). **Verworfen:** Host-Tabelle (DB v9); Rückfrage bei jedem Hostwechsel (offen, Inhaberentscheid) – für bestehende Profile inzwischen entschieden, siehe DEC-208. Quelle: -055 «Durchgeführte Arbeiten», nicht im Code nachgeprüft.
 - **Betroffene Komponenten:** `sync/PcIdentity.kt` (`PcAccess.SETUP`, `WRONG_NET`), `sync/NetworkRules.kt` (`learnNetOk`), `smb/SmbSession.kt` (`currentIdentity`), `sync/SyncWorker.kt` (`precheckPc`), `ui/ProfileScreen.kt` (`save`, `runTest`, `setPcMode`), `ui/ProfileParts.kt`
-- **Abhängigkeiten:** DEC-204 (ändert Punkte 1 und 5), DEC-103, DEC-126
+- **Aktualisierung (2026-11-15, DEC-287, Benutzerentscheid, Umsetzung SYNC-20261115-351):** Mit dem Wegfall der WLAN-Erkennung über den Namen entfällt die Bedingung «WLAN-Name» beim Lernen (Punkt 3, `learnNetOk` bei `BOTH`) und die Entscheidung `WRONG_NET`; gelernt wird weiterhin nur nach dem Speichern und in «Verbindung testen». Stand bis zur Umsetzung: 0.17.x.
+- **Abhängigkeiten:** DEC-204 (ändert Punkte 1 und 5), DEC-103, DEC-126; geändert durch DEC-287
 
 ### DEC-206: Laufanimation: Einzelbilder als feste Quell-Assets
 - **Status:** Accepted (im Code laut Development SYNC-20261109-066, Version 0.13.11, ungebaut)
@@ -2020,6 +2077,7 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Begründung:** Design-Prüfung; der Inhaber: Bereich wirke sonst „überfordernd und zu fordernd“; entspricht den Play-Store-Empfehlungen.
 - **Alternativen:** alle Berechtigungen beim ersten Start (bisher).
 - **Konsequenzen:** Ein Profil ohne WLAN-Namen verlangt keinen Standort.
+- **Aktualisierung (2026-11-15, DEC-287/DEC-289):** Die Standortberechtigung entfällt ganz (kein WLAN-Name mehr). Die Startseite fragt nur noch Benachrichtigungen, Fotos/Videos (bei Fotos-Profil) und die Akku-Freistellung ab; «Standort in Fotos» (`ACCESS_MEDIA_LOCATION`) erst, wenn Länderordner gewählt werden (DEC-289). Umsetzung: SYNC-20261115-351, -354.
 - **Betroffene Komponenten:** `ui/Permissions.kt` (`PermNeeds`, `missing`), `ui/PermissionRows.kt`, `ui/HomeScreen.kt`, `ui/ProfileScreen.kt`
 - **Abhängigkeiten:** DEC-055, DEC-177
 
@@ -2067,6 +2125,35 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Konsequenzen:** Umsetzung mit eigenem Merker-Set `encNotified` statt `pcNotified` (Hinweis Development).
 - **Betroffene Komponenten:** `mirror/MirrorEngine.kt`, `sync/SyncWorker.kt`, `data/GlobalSettings.kt`
 - **Abhängigkeiten:** DEC-222
+
+### DEC-294: PauseService ab Android 15 auf 30 Minuten begrenzt
+- **Status:** Implemented *(0.19.10 laut Development SYNC-20261115-389; Benutzerentscheid 2026-11-15 zu SYNC-20261115-381, Variante A; Messlauf QA offen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** Android
+- **Entscheidung:** Ab API 35 beendet sich der `PauseService` (DEC-052) nach 30 Minuten selbst: Der Vordergrund wird entfernt, «Pausiert» bleibt als normale Benachrichtigung, danach wartet nur noch der Aufgabenplaner (WorkManager). Die Grenze zählt ab dem ersten Start und wird bei weiterem `onStartCommand` nicht zurückgesetzt. Ein Fortsetzen-Lauf im falschen WLAN startet den Dienst ab Android 15 nicht neu (Start nur aus `SyncWorker.markInterrupted`, bei einer Unterbrechung eines laufenden Syncs). Android 14 und älter bleiben unverändert. Umsetzung: gemeinsame Routine `endPause()` für `onTimeout` und die Grenze, `PausePolicy` (`limitMillis`, `mayStart`).
+- **Begründung:** Alle `dataSync`-Vordergrunddienste einer App teilen sich ab Android 15 ein Budget von 6 Stunden je 24 Stunden (Zurücksetzen, wenn der Benutzer die App in den Vordergrund holt). Eine stundenlange Pause verbrauchte es, sodass der Nachhol-Lauf keinen Vordergrund mehr erhielt.
+- **Alternativen:** Unverändert (verworfen: Budget); kein `PauseService` ab Android 15 (verworfen: kurze Unterbrüche bei strengen Herstellern blieben ungeschützt); 10 oder 60 Minuten (nicht gewählt).
+- **Konsequenzen:** Zielkonflikt mit DEC-052 (lange sichtbare Pausenanzeige als Vordergrunddienst): Nach 30 Minuten zeigt nur noch die normale Benachrichtigung die Pause. Löst den Entscheid B3 (Anhang A Punkt 8). Quelle: Architecture (SYNC-20261115-381, -387), Development (-389); von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** `sync/PauseService.kt`, `sync/SyncWorker.kt`
+- **Abhängigkeiten:** DEC-052, DEC-109
+
+### DEC-297: Läufe im Hintergrund: Vordergrund früh anfordern, Fortsetzen beschleunigen, Wächter-Auftrag; Lauf ohne Vordergrund akzeptiert
+- **Status:** Implemented *(0.20.4 bis 0.20.13 laut Development SYNC-20261116-428, -435; Entscheide Architecture -433, -442; Messlauf -390 abgeschlossen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-16
+- **Kategorie:** Android / Hintergrund
+- **Entscheidung:**
+  1. **Fortsetzen-Lauf beschleunigt (0.20.4):** `SyncScheduler.enqueueResume` reiht den Fortsetzen-Lauf wie `WORK_AUTO` als expedited ein (bei Verzögerung 0 und gesetzter Auto-Spezifikation), damit Android im Hintergrund einen Vordergrunddienst erlaubt (ab Android 12 sonst abgelehnt). Nicht für den um 15 Minuten verzögerten Auftrag und nicht beim Schalter «Nur beim Laden».
+  2. **Vordergrund sofort (0.20.5, 0.20.6):** `SyncWorker.work()` fordert den Vordergrund bei nicht manuellen Läufen sofort an (das Startrecht aus dem Hintergrund gilt nur kurz, Ablehnung nach etwa 4 s unter API 36), nur bei einem Fortsetzen-Lauf oder erlaubtem Netz. Ein Fortsetzen-Lauf wartet bis 10 s auf ein erlaubtes Netz (`activeNetwork` ist direkt nach dem WLAN-Verbinden oft leer); `WifiNetworkReceiver` wartet bis 6 s auf das WLAN als aktives Netz und loggt (0.20.11).
+  3. **Lauf ohne Vordergrund akzeptiert (0.20.8, Entscheid -433):** Ohne Akku-Ausnahme bekommt ein Hintergrundlauf unter Umständen keinen Vordergrund; der Rückfall (Unterbruch, Fortsetzen) ist akzeptiert. `ForegroundCheck` erkennt den Fall per `ActivityManager.getRunningServices` (nur eigene Dienste; prüft, ob der `SystemForegroundService` von WorkManager im Vordergrund ist, bis 3 s Wartezeit; nicht feststellbar = keine Meldung), weil die Ablehnung nicht zuverlässig als Ausnahme von `setForeground` kommt. Jeder solche Lauf erhält im Verlauf eine Zeile der Stufe W («Lief ohne Vordergrund …», kein Fehler, nicht «nicht ruhig»).
+  4. **Akku-Tipp erneut (ändert DEC-295 Punkt 1):** Nach «Nicht jetzt» erscheint die Tipp-Karte einmal erneut, wenn danach ein Lauf ohne Vordergrund erkannt wurde (Zusatz «Eine Synchronisierung musste ohne Vordergrund laufen.»); nach dem zweiten «Nicht jetzt» bleibt sie dauerhaft weg; ist die Akku-Ausnahme gesetzt, werden alle Merker gelöscht. Der Knopf öffnet die App-Info von LeoSync (`ACTION_APPLICATION_DETAILS_SETTINGS`, Rückfall Akku-Optimierungsliste); `BatteryTip.openSettings` und ein gemeinsames «So geht es» (`BatteryHowTo`, Herstellerhinweise `VendorHints`) gelten in Einstellungen und Tipp-Seite (0.20.13; Weg bei OnePlus laut Benutzer bestätigt, sonst nicht belegt).
+  5. **Pausiert-Anzeige (0.20.8):** Ein Zeitlimit-Stopp (`STOP_REASON_TIMEOUT`) bei vorhandenem Netz zeigt «Pausiert – Wird fortgesetzt» statt «Wartet auf WLAN» (kein `PauseService`). Unterbruch durch Netzverlust wird unmittelbar nach dem Stopp markiert, höchstens einmal je Lauf, mit sofort gespeichertem Merker (0.20.3).
+  6. **Wächter-Auftrag (0.20.9):** Ein automatischer Lauf hinterlegt einen verzögerten Fortsetzen-Auftrag (`WORK_RUN_GUARD`, 10 min, `armRunGuard`/`disarmRunGuard`), den jedes reguläre Ende zurücknimmt; so setzt die App nach einem Prozess-Kill fort. Ohne Vordergrund werden Fortschrittsanzeige und -daten höchstens alle 5 s aktualisiert (Binder-Last).
+  7. **Doze akzeptiert (Entscheid -442):** Ein Fortsetzen im Ruhezustand (Doze) verzögert sich bis zum Wartungsfenster, zum Aufwecken oder zum Sicherheitsnetz; Plattformgrenze, akzeptiert (SYNC-ENGINE.md R-BG9). Die Iteration ist beendet.
+- **Begründung:** Beobachtungen am Emulator (API 36) und am Gerät: ohne frühen Vordergrund lehnt Android den Dienst im Hintergrund ab, Läufe froren ein oder wurden gestoppt.
+- **Alternativen:** — (in den Quellen nicht genannt).
+- **Konsequenzen:** Ändert DEC-295 (Punkt 1) und ergänzt DEC-294. Nicht im Emulator messbar: Doze, Standby rare/restricted, `onTimeout`, Android ≤ 14 (TESTING.md §14.8). Quelle: Development (SYNC-20261116-428, -435), Architecture (-433, -442, -443); von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** `sync/SyncScheduler.kt`, `sync/SyncWorker.kt`, `sync/ForegroundCheck.kt`, `sync/SyncDecisions.kt`, `sync/Receivers.kt`, `ui/Permissions.kt`, `ui/PermissionRows.kt`, `ui/MessagesCard.kt`
+- **Abhängigkeiten:** DEC-052, DEC-294, DEC-295
 
 ---
 
@@ -2188,8 +2275,6 @@ Anhänge: [A. Offene Entscheidungen](#a-offene-entscheidungen) · [B. Änderungs
 - **Entscheidung:** Der Knopf während eines Syncs (App und Benachrichtigung) heisst „Pausieren“; er hält nur den laufenden Lauf an, der nächste automatische Start setzt fort.
 - **Begründung:** Hinweis des Inhabers, „Abbrechen“ sei irreführend.
 - **Alternativen:** —
-Pausiert angezeigt.
-- **Betroffene Komponenten:** `HomeScreen.StatusCard`„Pausiert“ angezeigt.
 - **Betroffene Komponenten:** `HomeScreen.StatusCard`, `Notifications.progress`, `LogScreen`
 - **Abhängigkeiten:** DEC-086, DEC-095
 
@@ -2991,6 +3076,7 @@ Pausiert angezeigt.
 - **Begründung:** Zustand auf einen Blick ohne Text in der Kopfzeile; Zustand nicht nur über Farbe erkennbar (Bedienhilfen, Textzeilen).
 - **Alternativen:** Andere Symbolformen und Reihenfolgen aus den Vorlagen unter `.claude/ux/icons/vorschlag/`: verworfen zugunsten WLAN «A» und PC «A».
 - **Konsequenzen:** Überholt «im WLAN ✓» als Etikett (Profilkarte, siehe Eintrag zu den Profilkarten in §10). Zeichenkette `home_profile_on_wifi` entfernt, `icon_on_wifi` neu (DE/EN).
+- **Aktualisierung (2026-11-15, DEC-287, Umsetzung SYNC-20261115-351):** Das WLAN-Symbol entfällt mit dem WLAN-Namen; es bleiben das PC-Symbol und das Verschlüsselungssymbol (rot mit Warndreieck bei abgelehnter Verschlüsselung, DEC-288). Dass das WLAN-Symbol entfällt, ist ausdrücklich bestätigt (Benutzerfreigabe 2026-11-15 im Chat UX, Auftrag SYNC-20261115-383; Umsetzung durch Development in SYNC-20261115-382, Version 0.19.9; DEC-295). «Bekannte Netze» und «Vergessen» im Profil bleiben.
 - **Betroffene Komponenten:** `ui/HomeParts.kt`, `res/drawable(-night)/ic_wifi.xml`, `ic_pc_known.xml`, `res/values(-de)/strings_home.xml`
 - **Abhängigkeiten:** DEC-215
 
@@ -3004,6 +3090,287 @@ Pausiert angezeigt.
 - **Konsequenzen:** Technik laut Development: SAF-Dokument-Adresse des Freigabeordners mit einmaliger Leseberechtigung (`FLAG_GRANT_READ_URI_PERMISSION`), keine neue Berechtigung, kein `FileProvider`; `LocalTree.trashFileForOpen` nur lesend. «Neueste Version je Datei wählen» und übrige Funktionen unverändert.
 - **Betroffene Komponenten:** `ui/TrashScreen.kt` (`openTrashFile`), `mirror/LocalTree.kt`, `strings_trash.xml` (`trash_open`, `trash_open_gone`, `trash_open_no_app`)
 - **Abhängigkeiten:** DEC-269
+
+### DEC-272: Ein Nachhol-Lauf je Fotoserie und globales Prüfintervall für Ordner-Profile
+- **Status:** Implemented *(0.17.0, laut Development SYNC-20261113-309; Konzept SYNC-20261113-305, Benutzerfreigabe 2026-11-13; 651 Tests ohne Fehler; Gerätetest (WorkManager, MediaStore) nicht ausgeführt; von Documentation nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-13
+- **Kategorie:** Sync / Planung
+- **Entscheidung:** (A) **Fotos:** Der Nachhol-Lauf für zu junge Fotos liegt auf dem Reifezeitpunkt der **neusten** jungen Datei (bisher der ältesten: eine Kette von Läufen, je Foto einer, mit Verlaufseintrag, PC-Kontakt und Benachrichtigung). Ein Auftrag `sync-followup` (`REPLACE`) für alle Profile trägt die IDs der Fotoprofile mit wartenden Dateien (Auftragsdaten und Tags, beim Ersetzen vereinigt) und bearbeitet nur diese Profile, keine Ordner-Profile. Vorab prüft ein rein lokaler Schritt ohne Netzwerk, ob übertragungsbereite Fotos vorliegen: keine → kein Lauf, kein Verlaufseintrag, Frist neu nach der neusten jungen Datei; während des Laufs entstandene Fotos: jetzt + Mindestalter. Der Foto-Auslöser (Content-Trigger) bleibt unverändert. Nichts wird gespeichert, die Frist kommt in jedem Lauf aus dem MediaStore. (B) **Prüfintervall:** «Auf Änderungen prüfen» ist global (Einstellungen → Übertragung, 15 bis 1440 Min., Standard 60) statt je Ordner-Profil; die PC-Abfrage läuft nur, solange ein aktives Ordner-Profil existiert. Startwert beim Update oder bei älterer Sicherung: das kürzeste bisherige Profilintervall (ohne: 60). Die Profilspalte `remotePollMinutes` bleibt (keine Migration) und wird nur noch für den Startwert gelesen. Abgleichslogik der Ordner-Profile unverändert, kein Mindestalter für Ordner-Profile. (C) **Texte:** «Mindestalter für Fotos (Minuten)» mit neuem Hinweis; neues Feld «Ordner-Profile: Prüfintervall (Minuten)» (0.17.1, vorher «Ordner-Profile: auf Änderungen prüfen alle … Minuten») mit Hinweis; das Feld im Profil entfällt.
+- **Begründung:** Eine Fotoserie löste je Foto einen eigenen Lauf aus (Akku, viele Verlaufseinträge). Das Profil-Prüfintervall wirkte ohnehin als kürzestes Intervall aller aktiven Ordner-Profile.
+- **Alternativen:** In den Quellen nicht genannt (Konzept SYNC-20261113-305 nicht gelesen).
+- **Konsequenzen:** Die Profilspalte `remotePollMinutes` ist nur noch Altlast für den Startwert. Export und Import der globalen Einstellungen enthalten `folderCheckMinutes`. Details: `docs/SYNC-ENGINE.md` §2.3, `docs/DATA-MODEL.md`.
+- **Betroffene Komponenten:** `sync/FollowUpPlan.kt`, `sync/FolderCheck.kt`, `sync/SyncEngine.kt` (`newestYoungFileAt`), `sync/SyncRunner.kt`, `sync/SyncWorker.kt`, `sync/SyncScheduler.kt`, `sync/PendingCheck.kt`, `data/GlobalSettings.kt` (`folderCheckMinutes`, `folderProfilesActive`), `data/ProfileWizard.kt`, `backup/BackupManager.kt`, `diag/Diagnostics.kt`, `ui/SettingsScreen.kt`, `ui/ProfileCards.kt`, `ui/ProfileScreen.kt`
+- **Abhängigkeiten:** DEC-126
+
+### DEC-273: Neues App-Symbol «Leo im Sync-Ring» und Play-Store-Assets
+- **Status:** Accepted *(Benutzerentscheid Variante A, laut Auftrag SYNC-20261114-330, UX; ob das Symbol schon im App-Code steht, ist nicht belegt)*
+- **Datum:** 2026-11-14
+- **Kategorie:** UI / Designsystem / Play-Store-Vorbereitung
+- **Entscheidung:** Das App-Symbol zeigt Leo (die Marke) im Sync-Ring, Variante A mit blauem Verlauf. Die Play-Store-Bilder folgen dem blauen Verlaufsstil mit einer Schlagzeile je Bild (Schlagzeilen und Reihenfolge: Task-Datei SYNC-20261114-327). Assets unter .claude/AppScreenshots/playstore/: phone_de und phone_en mit je 8 Bildern (1080 × 1920), Feature-Bild 1024 × 500 und playstore_icon_512.png. Nachtrag 2026-11-14: Die Phone-Bilder sind neu im Stil des KI-überarbeiteten Feature-Bildes (Hintergrund ackground2.png, 3D-Smartphone bei den Bildern 1, 3, 5 und 7); Generator .claude/ux/playstore-assets-v2.py; Feature-Bild für Play: eature/feature_play_1024x500_de.png (Original des Benutzers unter original/).
+- **Begründung:** Vorbereitung der Play-Store-Aufnahme (DEC-109); die Begründung der Variantenwahl steht nicht im Auftrag.
+- **Alternativen:** Weitere Symbolvarianten der Designvorschau (in den Quellen nicht einzeln genannt).
+- **Konsequenzen:** Die Play-Beschreibungstexte (kurz und lang, DE und EN) sind noch nicht erstellt.
+- **Betroffene Komponenten:** .claude/AppScreenshots/playstore/, .claude/ux/playstore-assets-v2.py, App-Symbol (Ressourcen)
+- **Abhängigkeiten:** DEC-109
+
+### DEC-274: «Änderung schlägt Löschung» im beidseitigen Ordner-Sync
+- **Status:** Implemented *(0.17.4 laut Development SYNC-20261114-337; von Documentation nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync / Datenverlustschutz
+- **Entscheidung:** Bei Richtung BOTH mit «Löschungen übernehmen» wird eine Löschung nicht übernommen, wenn die Datei auf der anderen Seite seit dem letzten Sync geändert wurde; sie wird stattdessen wieder auf die löschende Seite kopiert. Einweg-Richtungen bleiben unverändert (B1, R-D1).
+- **Begründung:** Die geänderte Version ging bisher in den Papierkorb statt in einen Konflikt (R-D1).
+- **Alternativen:** Eigener Konflikttyp mit Dialog; Status quo: beide verworfen.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** mirror/MirrorPlanner, mirror/MirrorEngine
+- **Abhängigkeiten:** —
+
+### DEC-275: Google Fotos «Speicherplatz freigeben»: Hinweis in Einrichtung und Hilfe
+- **Status:** Accepted *(Design freigegeben 2026-11-15, Wortlaut in DEC-291; Umsetzung offen: Development SYNC-20261115-352; Hilfetext in `docs/hilfe/` seit SYNC-20261115-355)*
+- **Datum:** 2026-11-14
+- **Kategorie:** UI / Hilfe
+- **Entscheidung:** Ein Hinweis in der Einrichtung bzw. der Hilfe weist auf die Gefahr hin, dass Google Fotos beim «Speicherplatz freigeben» Originale löscht, bevor LeoSync sie gesichert hat (B10; DECISIONS.md Anhang D Punkt 19). Der Wortlaut (einmaliger, ausblendbarer Tipp im Dialog «Wie weiter?» nach dem Assistenten eines Fotos-Profils) steht in DEC-291.
+- **Begründung:** Gelöschte Originale landen sonst nie auf dem PC.
+- **Alternativen:** In den Quellen nicht genannt.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** docs/hilfe/*, Einrichtungsseiten der App
+- **Abhängigkeiten:** —
+
+### DEC-276: Windows-unzulässige Namen im Ordner-Sync überspringen
+- **Status:** Implemented *(0.17.4 laut Development SYNC-20261114-337; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync
+- **Entscheidung:** Namen, die Windows nicht erlaubt (Sonderzeichen, Endung auf Punkt oder Leerzeichen, reservierte Namen wie CON, NUL, COM1, auch mit Endung), werden im Ordner-Sync nicht hochgeladen, sondern mit Hinweis übersprungen (kein Fehler); nie still umbenennen. Namen, die sich nur in Gross-/Kleinschreibung oder Unicode-Form (NFC/NFD) unterscheiden, werden nur gemeldet (B5, R-W1, R-C1).
+- **Begründung:** Bisher Dateifehler in jedem Lauf (R-W1) bzw. eine still ignorierte Datei (R-C1).
+- **Alternativen:** Automatische Umbenennung; Schlüssel-Normalisierung: beide verworfen.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** mirror/MirrorEngine, mirror/LocalTree
+- **Abhängigkeiten:** —
+
+### DEC-277: Verschlüsselung merken und Nachweis des Servers über den Sitzungsschlüssel
+- **Status:** Implemented *(B11a/Umstellung 0.17.7, Karte 0.19.2, Klartext-Sperre und Signierpflicht 0.19.4; laut Development, nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sicherheit / SMB
+- **Entscheidung:** (B4) Hatte ein Profil mit «Wenn möglich» einmal eine verschlüsselte Sitzung, wird eine spätere unverschlüsselte Verbindung abgelehnt (Schutz gegen Herabstufung, R-SMB2/R-SMB3); sichtbar über ein rotes Verschlüsselungssymbol und eine Meldung im Profil, Zurücksetzen nur durch Benutzeraktion; Signieren wird nicht zusätzlich erzwungen; Server, die nie verschlüsselt haben, bleiben ungeschützt. (B11, ersetzt den versteckten Verschlüsselungs-Merker aus B4) Verschlüsselt der PC bei Stufe «Wenn möglich» tatsächlich, stellt die App die Stufe einmalig automatisch auf «Erforderlich»; der Benutzer kann sie im Profil jederzeit zurücksetzen, danach wird für dieses Profil nie mehr automatisch umgestellt. Server, die nur signieren, werden über einen Merker künftig mit Signierpflicht verbunden.
+- **Begründung:** Signierte oder verschlüsselte Antworten kann nur ein Server mit Kenntnis des Passworts erzeugen. Grenze: Die Anmeldeantwort ist dann schon gesendet (R-SMB4 bleibt).
+- **Alternativen:** In den Quellen für B4 und B11 nicht einzeln genannt (B4-Merker durch B11 ersetzt).
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** smb/SmbSession.kt, data/Entities.kt, ui/ProfileScreen.kt
+- **Abhängigkeiten:** DEC-222
+
+### DEC-278: Kein automatischer Lauf über mobile Daten/VPN im Roaming
+- **Status:** Implemented *(0.17.6 laut Development SYNC-20261114-338; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync / Netzwerk
+- **Entscheidung:** Automatische Läufe über mobile Daten bzw. VPN finden im Roaming nicht statt; WLAN und manueller Start bleiben unverändert (B7).
+- **Begründung:** Kosten im Ausland (vgl. Hilfe «Mobile Daten/VPN»).
+- **Alternativen:** In den Quellen nicht genannt.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** sync/NetworkRules.kt, sync/SyncScheduler.kt
+- **Abhängigkeiten:** DEC-126
+
+### DEC-279: BSSID als Prüfung verworfen, «WLAN-Name + PC-Kennung» hervorheben
+- **Status:** Accepted *(Teil «BSSID verworfen» gilt; Teil «WLAN-Name + PC-Kennung hervorheben» ersetzt durch DEC-287: die Stufe entfällt mit dem WLAN-Teil)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sicherheit / UI
+- **Entscheidung:** Die BSSID (Access-Point-MAC) als zusätzliche Prüfung ist verworfen. Stattdessen wird «WLAN-Name + PC-Kennung» als empfohlene Stufe hervorgehoben (B9). *(Zweiter Satz seit 2026-11-15 überholt: DEC-287, Entscheid Benutzer; das Design in SYNC-20261114-339 Punkt 2 wurde nicht bearbeitet.)*
+- **Begründung:** Die BSSID ist wie der WLAN-Name fälschbar; Probleme bei Mesh, mehreren Frequenzbändern und Router-Tausch.
+- **Alternativen:** BSSID-Prüfung: verworfen.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** ui/ProfileScreen.kt (PC-Kennung)
+- **Abhängigkeiten:** DEC-204
+
+### DEC-280: Umbenennen und Verschieben erkennen (Ordner-Sync)
+- **Status:** Implemented *(0.18.0 laut Development SYNC-20261114-340; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync (neue Funktion)
+- **Entscheidung:** Umbenennen und Verschieben (Einzeldateien und ganze Ordner) werden nur mit «Löschungen übernehmen» erkannt (B2, R-D2). Benutzervorgabe: Die Hilfe beschreibt das, auch dass ohne «Löschungen übernehmen» beim Umbenennen beide Namen auf beiden Seiten bleiben.
+- **Begründung:** Umbenennen wird bisher als Löschung plus Neu behandelt (Dubletten, doppelte Übertragung, R-D2).
+- **Alternativen:** Status quo; Erkennung ohne propagate: beide verworfen.
+- **Konsequenzen:** Neue Funktion (nächste Minor-Reihe). Hilfe nach der Umsetzung ergänzen. Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** mirror/MirrorPlanner, mirror/MirrorEngine, docs/hilfe/*
+- **Abhängigkeiten:** DEC-274
+
+### DEC-281: Speicherorte ohne Änderungszeit: Verlaufshinweis
+- **Status:** Implemented *(0.17.4 laut Development SYNC-20261114-337; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync / UI
+- **Entscheidung:** Bei Speicherorten ohne Änderungszeit erscheint einmalig ein Verlaufshinweis mit Handlungsempfehlung (anderer Speicherort) (B6, R-M1). Als mögliche spätere Option bleibt die Schaltfläche «Inhalt jetzt vollständig vergleichen» (6b) festgehalten.
+- **Begründung:** modified = 0 macht Änderungen mit gleicher Grösse unsichtbar (R-M1).
+- **Alternativen:** Automatischer Inhaltsvergleich bei jedem Lauf: verworfen.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** mirror/LocalTree.kt, mirror/MirrorEngine
+- **Abhängigkeiten:** —
+
+### DEC-282: Netz-Fingerabdruck für Profile «Nur PC-Kennung»
+- **Status:** Implemented *(0.19.0 laut Development SYNC-20261114-338/-351; präzisiert durch DEC-287; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sicherheit / Netzwerk
+- **Entscheidung:** Bei Profilen mit «Nur PC-Kennung»: In bekannten Netzen gilt die Erreichbarkeit wie heute; in unbekannten Netzen erfolgt ein Versuch, einmal täglich volle Versuche, stilles Neulernen mit Verlaufseintrag; der Fingerabdruck ist kein Vertrauensmerkmal (B8).
+- **Begründung:** Begrenzt die Akku- und Anmeldeversuche in fremden Netzen, ohne ein Vertrauensmerkmal vorzutäuschen.
+- **Alternativen:** Netzbereich der PC-Adresse als Kriterium: verworfen (der Zielhost darf in einem gerouteten Netz liegen).
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** sync/PcIdentity.kt, sync/NetworkRules.kt
+- **Abhängigkeiten:** DEC-204, DEC-205
+
+### DEC-283: Gast- und anonyme SMB-Sitzungen bei konfiguriertem Benutzer ablehnen
+- **Status:** Implemented *(0.17.5 laut Development SYNC-20261114-334; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sicherheit / SMB
+- **Entscheidung:** Ist ein Benutzer konfiguriert, werden Gast- oder anonyme Sitzungen abgelehnt (Kategorie A der Analyse -320).
+- **Begründung:** In den Quellen nicht ausdrücklich genannt.
+- **Alternativen:** In den Quellen nicht genannt.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** smb/SmbSession.kt
+- **Abhängigkeiten:** DEC-222
+
+### DEC-284: Laufwerkskennung der PC-Freigabe merken (Schutzbremse «Anderes Laufwerk»)
+- **Status:** Implemented *(0.19.1 laut Development SYNC-20261114-341, Karte 0.19.2; Kennzeichen = Erstellungszeit des Freigabe-Stamms, siehe Aktualisierung; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sync / Datenverlustschutz
+- **Entscheidung:** Die Laufwerkskennung der PC-Freigabe wird beim Ordner-Sync gemerkt; bei Abweichung greift die Schutzbremse «Anderes Laufwerk» (B12). Es ist ein Datenverlustschutz, kein Angriffsschutz.
+- **Begründung:** Ein anderes Laufwerk unter demselben Freigabenamen könnte sonst als «alles gelöscht» gelesen werden.
+- **Alternativen:** In den Quellen nicht genannt.
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Aktualisierung (0.19.1, Entscheid Benutzer im Chat Development, SYNC-20261114-341, Variante B):** Als Kennzeichen dient die Erstellungszeit des Freigabe-Stamms in Sekunden (`SmbSession.volumeStamp()`), nicht eine Seriennummer: smbj 0.13.0 bietet `FileFsVolumeInformation` nicht öffentlich an (Reflection verworfen). Folge: weniger eindeutig; Fehlalarm, wenn der Stamm auf demselben Laufwerk neu angelegt wird oder ein Server (z. B. Samba) die Zeit nicht stabil liefert (dann wiederholt Nachfrage, nie Datenverlust). Fehlt die Angabe, wird nie blockiert. Details: SYNC-ENGINE.md Abschnitt 20.
+- **Betroffene Komponenten:** mirror/MirrorGuard, smb/SmbSession.kt
+- **Abhängigkeiten:** — (Schutzbremse allgemein: Abschnitt 8)
+
+### DEC-285: Computername aus der Anmeldeaushandlung nicht umsetzen; fachlich verworfene Ansätze
+- **Status:** Rejected *(Benutzerentscheid 2026-11-14, Auftrag SYNC-20261114-336)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Sicherheit
+- **Entscheidung:** (B13) Der Computername aus der Anmeldeaushandlung wird nicht umgesetzt (fälschbar, kein Mehrwert gegenüber der PC-Kennung). Ohne Benutzerentscheid fachlich verworfen: Markierungsdatei im Zielordner, SMB über QUIC mit Zertifikaten (smbj ohne Unterstützung), Kerberos (setzt Domäne voraus), Begleitprogramm auf dem PC. Offen beim Benutzer bleibt B3 (PauseService-Laufzeitgrenze, Entscheid nach der Messung SYNC-20261114-335).
+- **Begründung:** Siehe Entscheidung.
+- **Alternativen:** —
+- **Konsequenzen:** Quelle: Auftrag SYNC-20261114-336 (Architecture), Benutzerentscheid 2026-11-14 aus der Analyse SYNC-20261114-320; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** —
+- **Abhängigkeiten:** DEC-204
+
+### DEC-287: WLAN-Teil entfällt, PC-Kennung als einzige Erkennung; bekannte Netze ohne Berechtigung
+- **Status:** Implemented *(0.19.0 laut Development SYNC-20261115-351, Profil-Anzeige 0.19.2; Benutzerentscheid 2026-11-15; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** Sicherheit / Netzwerk / Android
+- **Entscheidung:**
+  1. **WLAN-Name entfällt.** Die Modi `WIFI` und `BOTH` (DEC-204) entfallen; es gibt nur noch die PC-Kennung. Die Berechtigungen für Standort (Vordergrund und «Immer zulassen») entfallen, ebenso das Warten (15 s) auf den WLAN-Namen (DEC-044). Der Import einer alten Sicherung bildet `WIFI` und `BOTH` auf die PC-Kennung ab; ohne bekannte Kennung genügt einmal «Verbindung testen» (DEC-289).
+  2. **Bekannte Netze ohne Berechtigung.** Die App bildet je Netz einen Fingerabdruck aus dem IPv4-Gateway der Standardroute, dem IPv4-Präfix der Schnittstelle und der Suchdomäne (bewusst nicht aus DNS-Servern, die per DHCP oder Privat-DNS wechseln, und nicht aus dem IPv6-Präfix; je Profil höchstens 5 Netze, nicht in der Sicherung; Entscheid Development, SYNC-20261114-348 Abschnitt Entwicklung 0.19.0). DHCP-Server und DNS aus der ersten Fassung des Auftrags entfallen. Ein **bekanntes WLAN** gilt wie bisher: Erreichbarkeit und Wiederholungen (DEC-045, DEC-048). In einem **unbekannten WLAN** erfolgt ein kurzer Versuch; wird die PC-Kennung bestätigt, lernt die App das Netz still (Verlaufseintrag «Netz geändert, neu gelernt»); volle Versuche gibt es dort einmal täglich.
+  3. **Mobilfunk** erhält keinen Fingerabdruck; über mobile Daten bzw. VPN ist die PC-Kennung Pflicht, Roaming bleibt ausgeschlossen (DEC-126, DEC-278).
+  4. **Anzeige:** «Bekannte Netze: N» im Abschnitt «PC-Erkennung» des Profils, mit der Aktion «Vergessen» (DEC-289). Namen der Netze werden ohne Standort nicht angezeigt.
+  5. **Kein Vertrauensmerkmal:** Der Fingerabdruck steuert nur Akku und Versuche (DEC-282); geschützt wird weiterhin durch die PC-Kennung, geprüft vor dem Senden der Zugangsdaten.
+- **Begründung:** Ohne `ACCESS_BACKGROUND_LOCATION` ist der WLAN-Name im Hintergrund nicht lesbar; Google Play verlangt für Hintergrund-Standort eine eigene Begründung mit Video. Die PC-Kennung braucht keinen Standort und schützt besser gegen gleichnamige fremde Netze (siehe DEC-279).
+- **Alternativen:** Hintergrund-Standort mit Play-Begründung, BSSID-Prüfung (DEC-279) und eine harte Sperre in unbekannten Netzen: verworfen. Der WLAN-Name als optionale Zusatzbedingung (Konzept SYNC-20261114-350, ursprüngliche Fassung): verworfen zugunsten des vollständigen Wegfalls.
+- **Konsequenzen:** Ersetzt Punkt 13 der Ergänzung in SYNC-20261114-336 und Punkt 9 (B9) dort; ändert DEC-044, DEC-126, DEC-190, DEC-204, DEC-205; präzisiert DEC-282; DEC-279 gilt nur noch für «BSSID verworfen». Hilfe und Datenschutzerklärung nennen keine Standort- bzw. WLAN-Namen-Nutzung mehr (GPS aus Fotos für Länderordner bleibt lokal, siehe DEC-289). Für die Play-Konsole ist keine Standort-Begründung nötig (`docs/play-console.md`). Hintergrund-Standort kann später optional und erst bei Bedarf wieder aufgenommen werden (Konzept nach Benutzerfreigabe; noch nicht dokumentiert). Quelle: Auftrag SYNC-20261114-348 (Architecture) und -350 (UX); von Documentation nicht im Code nachgeprüft.
+- **Ergänzung (2026-11-15, Benutzerfreigabe im Chat UX, SYNC-20261115-383):** Das WLAN-Symbol auf der Profilkarte entfällt ausdrücklich (Umsetzung 0.19.9, DEC-295, DEC-270); «Bekannte Netze» und «Vergessen» im Profil bleiben.
+- **Betroffene Komponenten:** `sync/PcIdentity.kt`, `sync/NetworkRules.kt`, `sync/WifiHelper.kt`, `sync/PauseService.kt`, `sync/Receivers.kt`, `ui/Permissions.kt`, `ui/PermissionRows.kt`, `ui/ProfileScreen.kt`, `backup/BackupCodec`
+- **Abhängigkeiten:** DEC-044, DEC-126, DEC-190, DEC-204, DEC-205, DEC-278, DEC-279, DEC-282, DEC-286
+
+### DEC-288: Schutz-Stopp-Karten: Verschlüsselung/Signierung abgelehnt, automatische Umstellung, anderes Laufwerk
+- **Status:** Implemented *(0.19.2 laut Development SYNC-20261115-352, «Signierung nicht mehr verfügbar» 0.19.4; Benachrichtigungstext für «Anderes Laufwerk» ist der allgemeine Schutzbremsen-Text; UX-Review offen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Sicherheit
+- **Entscheidung:** Ein Schutz-Stopp (DEC-277 Verschlüsselung/Signierung abgelehnt; DEC-284 anderes Laufwerk) nutzt dieselbe Karte wie die bestehende Schutzbremse auf der Startseite: rosa Karte mit Warndreieck, Titel, Erklärung in einfachen Worten, Hauptaktion = die sichere Handlung, Zweitaktion = die riskante mit Bestätigungsdialog. Das Profil ruht («Benutzerentscheidung erforderlich»), bis der Benutzer entscheidet. Nie nur Farbe: Symbol, Text und Zustandswort stehen immer dabei. Bei Schrift 2,0 stehen die Schaltflächen untereinander in voller Breite.
+  1. **Verschlüsselung nicht mehr verfügbar** (Stufe «Wenn möglich», früher verschlüsselt): Karte auf der Startseite plus gleiche Meldung oben im Profil; Profilkarte zeigt das Verschlüsselungssymbol rot mit Warndreieck und die Zeile «Verschlüsselung abgelehnt». Aktionen: «Verbindung testen» (bei Erfolg Zustand zurückgesetzt) und «Unverschlüsselt erlauben» (Bestätigungsdialog; setzt den Merker zurück, der nächste Lauf verbindet unverschlüsselt und merkt neu). Mögliche Ursachen in einfachen Worten: Einstellung am NAS oder PC geändert, oder jemand stört die Verbindung im Netz. Verlaufseintrag «Angehalten: Verschlüsselung abgelehnt (früher verschlüsselt)»; Benachrichtigung einmal je Ereignis, nicht bei jedem Lauf.
+  2. **Stufe «Erforderlich», aber nicht verfügbar** (auch nach der automatischen Umstellung): Karte «Verschlüsselung nicht verfügbar»; Aktionen «Verbindung testen» und «Auf ‹Wenn möglich› stellen» (mit Bestätigung; danach keine automatische Umstellung mehr).
+  3. **Signierung nicht mehr verfügbar** (Profile ohne Verschlüsselung, der Server signierte früher): analoge Karte mit der Aktion «Ohne Signierung erlauben» (Bestätigungsdialog).
+  4. **Automatische Umstellung auf «Erforderlich»** (B11): Der Benutzer erfährt es durch einen Verlaufseintrag und eine einmalige Info-Zeile oben im Profil mit «OK» (keine Benachrichtigung, es besteht keine Gefahr). Die Stufe bleibt frei wählbar; beim Herabsetzen von «Erforderlich» auf «Wenn möglich» oder «Aus» erscheint der Dialog «Weniger Schutz?», und unter der Auswahl steht dauerhaft die Erklärzeile, dass LeoSync bei «Wenn möglich» und «Aus» nie automatisch umstellt.
+  5. **Anderes Laufwerk erkannt** (B12): Karte «Anderes Laufwerk erkannt» mit den Ursachen (Festplatte oder NAS getauscht, Laufwerk neu formatiert, anderes Gerät unter derselben Adresse); Hauptaktion «Nicht synchronisieren» (der Zustand bleibt, das Profil bleibt angehalten), Zweitaktion «Ist das richtige Laufwerk – weiter» mit Bestätigung (die Kennung wird übernommen, danach prüft die bestehende Stichprobe den PC-Ordner). Verlaufseintrag «Angehalten: anderes Laufwerk erkannt», Benachrichtigung mit «Tippe, um zu entscheiden.»
+  6. **Mehrere betroffene Profile:** Vorschlag der UX, noch nicht entschieden: je Profil eine Karte, höchstens drei sichtbar, darüber «n weitere». Offen zur technischen Prüfung durch Architecture bzw. Development: Zustandsquellen (SharedPreferences, Merker «früher verschlüsselt»).
+- **Begründung:** Ein stiller Wechsel auf unverschlüsselte oder anders gelegene Ziele wäre ein Datenschutz- bzw. Datenverlustrisiko (DEC-277, DEC-284); der Benutzer soll es sicher bemerken, weil er am NAS etwas umgestellt haben kann (Benutzervorgabe).
+- **Alternativen:** Variante B (nur Meldung im Profil): nicht gewählt, weil weniger sichtbar. Texte DE/EN und Dialoge stehen in der Task-Datei SYNC-20261114-339 (Abschnitt UX-Designvorschlag).
+- **Konsequenzen:** Der Zustand «abgelehnt» liegt je Profil dauerhaft vor (SharedPreferences wie `EncryptionStatus`), wird bei Änderung von Pfad, Freigabe oder Stufe zurückgesetzt und nicht gesichert; Zurücksetzen nur durch bewusste Benutzeraktion. Quelle: UX-Specialist (SYNC-20261115-355); Code nicht nachgeprüft.
+- **Betroffene Komponenten:** `ui/HomeScreen.kt`, `ui/ProfileScreen.kt`, `mirror/MirrorGuard`, `smb/SmbSession.kt`
+- **Abhängigkeiten:** DEC-222, DEC-277, DEC-284
+
+### DEC-289: Einrichtungskarte nur Kernberechtigungen, «Standort in Fotos» bei Bedarf, PC-Erkennung und «Bekannte Netze» im Profil
+- **Status:** Implemented *(0.19.0/0.19.2 laut Development SYNC-20261115-351/-354; offen: Verlaufseintrag «PC-Erkennung umgestellt» beim Import; UX-Review offen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Android
+- **Entscheidung:**
+  1. **Einrichtungskarte «Einrichtung unvollständig»** zeigt nur zutreffende Kernpunkte, je mit Symbol, Kurzerklärung und Schaltfläche; erledigte Zeilen erhalten ein Häkchen, die Karte verschwindet, wenn alles erledigt ist: Benachrichtigungen (Android 13 und neuer), Zugriff auf Fotos und Videos (nur wenn ein Fotos-Profil existiert), Akku-Optimierung ausschalten.
+  2. **Akku-Freistellung** über die Systemliste (`ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`, kein direkter Dialog, DEC-286): Schaltfläche «Akku-Einstellungen öffnen» und aufklappbar «So geht es» in vier Schritten (Akku-Einstellungen öffnen, Liste auf «Alle Apps», «LeoSync» suchen und «Nicht optimieren» wählen, je Handy «Unbeschränkt», zurück zu LeoSync). Der Zustand wird per Systemabfrage angezeigt (Häkchen); die Karte kann in den Einstellungen erneut gezeigt werden.
+  3. **«Standort in Fotos»** (`ACCESS_MEDIA_LOCATION`) wird erst angefragt, wenn im Fotos-Profil Länderordner gewählt werden, mit einer Erklärung vor dem Systemdialog («Aufnahmeort der Fotos lesen?»: der Ort wird nur auf dem Handy ausgewertet, nicht gespeichert und nicht gesendet; «Weiter» / «Nicht jetzt»). Abgelehnt oder entzogen: Der Schalter «Länderordner» springt auf aus, im Profil steht «Aufnahmeort: Berechtigung fehlt» mit «Erteilen».
+  4. **PC-Erkennung im Profil** (DEC-287): kein Moduswahl, keine WLAN-Liste; Zustandsanzeige «PC erkannt» / «Noch nicht erkannt» / «Anderer PC», eine Erklärzeile und «Verbindung testen». Bei «Anderer PC» «Diesen PC verwenden» mit Bestätigung (Verhalten mit Architecture abzustimmen, ggf. gleicher Weg wie «Anderes Laufwerk», DEC-288).
+  5. **«Bekannte Netze: N»** mit «Vergessen» (Bestätigungsdialog «Bekannte Netze vergessen?»; LeoSync lernt sie beim nächsten Verbinden neu, keine Datei geht verloren). Nur die Anzahl, keine Namen. Verlaufstext «Neues Netz gelernt: PC dort sicher erkannt.»
+  6. **Import aus der alten App:** Profile mit WLAN-Prüfung werden auf die PC-Kennung umgestellt (einmaliger Verlaufseintrag); ohne bekannte Kennung erscheint am Profil und in der Import-Checkliste (DEC-290) «Einmal ‹Verbindung testen›».
+- **Begründung:** Kernberechtigungen statt eines Berechtigungskatalogs (Google-Play-Empfehlung, DEC-190); der Standort entfällt wegen DEC-287; Hersteller verteilen Akku-Menüs verschieden, daher Zustand per Systemabfrage.
+- **Alternativen:** Eigene Seite «Akku» in den Einstellungen (Variante B): nur ergänzend. Texte DE/EN stehen in SYNC-20261114-350 und -343.
+- **Konsequenzen:** Die Karte zeigt keine Standort-Zeile mehr; «WLAN-Prüfung inaktiv: Berechtigung fehlt» entfällt. Quelle: UX-Specialist (SYNC-20261115-355); Code nicht nachgeprüft.
+- **Betroffene Komponenten:** `ui/Permissions.kt`, `ui/PermissionRows.kt`, `ui/HomeScreen.kt`, `ui/ProfileScreen.kt`
+- **Abhängigkeiten:** DEC-190, DEC-204, DEC-286, DEC-287
+
+### DEC-290: Umzug von der alten App und Checkliste «Nach dem Import»
+- **Status:** Implemented *(0.19.2 laut Development SYNC-20261115-353/-354; offen: Snackbar «Alle Profile bereit»; UX-Review offen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Sicherung
+- **Entscheidung:**
+  1. **Geführter Einstieg «Von der alten LeoSync-Version umziehen?»** auf der leeren Startseite der neuen App («Umzug starten» / «Neu einrichten»), keine neue Funktion, sondern ein Einstieg in die vorhandene Export-/Import-Funktion (DEC-089, DEC-110). Schritte: 1. In der alten App Einstellungen › Sicherung exportieren und die Datei speichern. 2. In der neuen App «Sicherung importieren». 3. Der Checkliste «Nach dem Import» folgen. 4. Die alte App erst deinstallieren, wenn alles läuft; bis dahin in der alten App alle Profile pausieren, damit nicht beide Apps dieselben Ordner synchronisieren.
+  2. **Sicherheitshinweis:** Der Export enthält Passwörter (Antwort des Benutzers), die Sicherungsdatei ist sicher aufzubewahren und nach dem Umzug zu löschen.
+  3. **Checkliste «Nach dem Import»** oben auf der Startseite: eine Zeile je Profil mit dem nächsten nötigen Schritt und einer Schaltfläche («Ordner wählen» bei verlorener Freigabe, «Verbindung testen» bei noch unbekannter PC-Kennung, «Jetzt starten» für den ersten Abgleich); Zeilen entfallen einzeln, die Karte verschwindet, sobald jedes Profil einmal gelaufen ist (nicht wegwischbar, nur einklappbar); Abschluss einmalig als Snackbar «Alle Profile bereit».
+- **Begründung:** Die beiden Apps haben verschiedene Kennungen und teilen keine Daten (DEC-286); der Import lässt Profile absichtlich auf den ersten Start warten («Schläfer-Falle», DEC-103, DEC-135), und das war bisher nirgends sichtbar.
+- **Alternativen:** Variante B (nur Zeile in den Einstellungen) zu versteckt; Variante C (Hinweis in der alten App) braucht ein Update der alten App. Checkliste: Hinweis-Zähler (zu unauffällig) oder blockierender Assistent (mühsam).
+- **Konsequenzen:** Der Umzug braucht keine Datenübernahme anderer Art. Texte DE/EN stehen in SYNC-20261114-343 und -326. Quelle: UX-Specialist (SYNC-20261115-355); Code nicht nachgeprüft.
+- **Betroffene Komponenten:** `ui/HomeScreen.kt`, `backup/BackupManager`
+- **Abhängigkeiten:** DEC-089, DEC-103, DEC-110, DEC-135, DEC-286
+
+### DEC-291: Weitere freigegebene UX-Hinweise: Papierkorb-Zustand, Anleitung «Erforderlich», Konflikt-Auflösung, Speicher-Tipp, Updates über Google Play
+- **Status:** Implemented *(0.19.2 und 0.19.5 laut Development SYNC-20261115-352 bis -354 und -367; offen: Aktion «Offene Wiederherstellungen» im Papierkorb-Hinweis; UX-Review offen; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Hilfe
+- **Entscheidung:**
+  1. **Papierkorb-Hinweis** (dezente Hinweisleiste mit Info-Symbol, nicht rot, nur solange der Zustand besteht): «Migration wartet» (offene Wiederherstellungen halten den Umzug von `.LeoSync-Bin` nach `@LeoSync-Bin` auf; bei erschöpften Versuchen Aktion «Offene Wiederherstellungen») und «PC-Rückfall» (der PC oder das NAS lehnt `@LeoSync-Bin` ab, LeoSync bleibt bei `.LeoSync-Bin`; normal, die Dateien sind geschützt). Bezug: DEC-260. Der Wortlaut ist vor der Umsetzung gegen SYNC-ENGINE.md §7.2 g zu prüfen.
+  2. **«Verschlüsselung · Erforderlich» erklären** (DEC-222, DEC-225): kurzer Text in der Fehlermeldung, aufklappbares «Mehr dazu» mit den Schritten und Link «Anleitung öffnen» in den Hilfeabschnitt (damit nichts doppelt gepflegt wird). Aktionen «Anleitung öffnen» und «Auf ‹Wenn möglich› stellen» (mit Bestätigung, DEC-288). Menünamen der NAS (Synology, QNAP) sind vor der Veröffentlichung zu prüfen.
+  3. **Konflikt-Dialog bei Bildern und Videos** (DEC-248): je Seite eine zusätzliche Zeile mit der Auflösung (Video mit Dauer); die höhere Auflösung wird nur beschriftet («grösser»), nie vorausgewählt; Hinweiszeile zu Messenger-Komprimierung; keine Vorschaubilder. Offen für Architecture: Auflösung der PC-Seite per Teillesen des Dateikopfs über SMB; bei Nichtverfügbarkeit wird die Zeile weggelassen.
+  4. **«Speicher freigeben»-Tipp** (B10, DEC-275): einmaliger, mit «Verstanden» ausblendbarer Einzeiler im Dialog «Wie weiter?» nach dem Assistenten eines Fotos-Profils: Speicherplatz auf dem Handy erst nach einer Synchronisierung freigeben, am sichersten mit «Speicher freigeben» in LeoSync (löscht nur Fotos, die nachweislich auf dem PC liegen); Google Fotos kann Originale löschen, bevor sie gesichert sind. Der Menüname ist gegen den vorhandenen App-Text abzugleichen.
+  5. **Updates über Google Play:** Es gibt keine Update-Seite und keinen Update-Menüpunkt mehr (DEC-286); in «Über LeoSync» steht die Zeile «Updates kommen über Google Play».
+  6. **Reihenfolge der Umsetzung** (Empfehlung UX): Import-Checkliste, Anleitung «Erforderlich», Papierkorb-Hinweis, Konflikt-Auflösung, Speicher-Tipp.
+- **Begründung:** Beseitigt Reibungspunkte aus der UX-Sichtung (SYNC-20261114-326) ohne neue Funktion; Hinweise erscheinen nur bei Bedarf oder einmalig.
+- **Alternativen:** Konflikt-Dialog mit Vorschaubildern (Variante B, braucht Laden der PC-Datei, Mobilfunk- und Akku-Folgen) oder nur im WLAN (Variante C): nicht zuerst. Anleitung komplett in der App (Variante B): veraltet schnell.
+- **Konsequenzen:** Texte DE/EN stehen in SYNC-20261114-326, -339 und -343 (Abschnitt UX-Designvorschlag). Quelle: UX-Specialist (SYNC-20261115-355); Code nicht nachgeprüft.
+- **Betroffene Komponenten:** `ui/TrashScreen`, `ui/HomeScreen.kt`, Konflikt-Dialog, Einstellungen «Über LeoSync»
+- **Abhängigkeiten:** DEC-222, DEC-225, DEC-248, DEC-260, DEC-275, DEC-286
+
+### DEC-292: SMB-Antwortprüfung oberhalb von smbj: keine Klartext-Antworten in verschlüsselten Sitzungen, Signierpflicht nach beobachteter Signierung
+- **Status:** Implemented *(0.19.4 laut Development SYNC-20261115-365; Architekturentscheid zu SYNC-20261115-360, Teil von SYNC-20261114-320, B11; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** Sicherheit / SMB
+- **Entscheidung:** (Vorschlag der Auftragsbeschreibung, mit der Umsetzung übernommen)
+  1. In als verschlüsselt erkannten Sitzungen sind Klartext-Antworten unzulässig (fail-closed): ein Wrapper vor der smbj-Handlerkette weist sie ab, die Verbindung wird getrennt, der Lauf endet als Fehler.
+  2. B11b: Hat ein Server ohne Verschlüsselung einmal signiert (kein Gast, nicht anonym, Stufe «Wenn möglich» oder «Aus»), verlangt LeoSync die Signierung künftig (`withSigningRequired`); die Rücknahme geschieht nur durch bewusste Benutzeraktion («Ohne Signierung erlauben», Karte «Signierung nicht mehr verfügbar», DEC-288).
+- **Begründung:** smbj 0.13.0 nimmt Klartext-Antworten an, wenn keine Signierpflicht gilt, und setzt diese bei gesetztem Serverflag `ENCRYPT_DATA` selbst auf false; `withSigningRequired` allein wirkt dort nicht (Belege: Bytecode-Prüfung in SYNC-20261115-360). Bezug: B11 aus SYNC-20261114-320, DEC-277.
+- **Alternativen:** B11b streichen (verworfen: wirkt doch, wo keine Verschlüsselung besteht); nur `withSigningRequired` für alle Stufen (verworfen: bei `ENCRYPT_DATA` wirkungslos); Fork von smbj (verworfen: Pflegeaufwand).
+- **Konsequenzen:** Sitzungen ohne Verschlüsselung und ohne Signierung bleiben protokollbedingt fälschbar (Restrisiko, SYNC-ENGINE.md §17 R-SMB6). Der Verschlüsselungsstatus wird erst nach erfolgreichem TREE_CONNECT geschrieben. **Korrektur 0.19.6 (SYNC-20261115-371):** Die Prüfung gilt je Verbindung statt je Sitzung: Ab der Anmeldung wird jedes eingehende Paket geprüft, auch mit SessionId 0 und fremder SessionId, hinter dem Compound-Handler von smbj (jeder Teil eines zusammengesetzten Pakets einzeln), bei allen Stufen. **Veröffentlichung:** Das Repository LeoToolset/LeoSync (einschliesslich der Texte zu dieser Lücke: dieser Eintrag, SYNC-ENGINE.md 10.2/§17, Aufträge -360, -365, -366) darf der Inhaber veröffentlichen, sobald eine Version mit der Korrektur -371 (ab 0.19.6) in den geschlossenen Play-Test hochgeladen ist (Benutzerentscheid 2026-11-15 zu -378, Variante B). Die frühere Sperre («erst nach dem Play-Release der behebenden Version», Benutzerentscheid zu -345) galt für das ganze Repository (Korrektur aus -369), nicht nur für die Texte zur Lücke; sie ist damit ersetzt. PATCHNOTES nennen die Lücke weiterhin nur allgemein.
+- **Betroffene Komponenten:** `smb/SessionGuard.kt` (`PacketPolicy`, `SessionGuard`, `SigningPolicy`, `SigningStatus`), `smb/SmbSession.kt`, `ui/ProtectCards.kt`
+- **Abhängigkeiten:** DEC-222, DEC-277, DEC-283, DEC-288
+
+### DEC-295: Akku-Hinweis als Tipp-Karte, WLAN-Symbol auf der Profilkarte entfällt
+- **Status:** Implemented *(0.19.9 laut Development SYNC-20261115-382; QA-Prüfung SYNC-20261115-385 laut -388 bestanden; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Startseite
+- **Entscheidung:** Benutzerfreigabe 2026-11-15 (Chat UX, SYNC-20261115-383):
+  1. Der Akku-Hinweis auf der Startseite wird eine **neutrale, dauerhaft ausblendbare Tipp-Karte** («Nicht jetzt», Merker je Installation) unter dem Statuskasten (Reihenfolge der Karten: 0.19.12). Die rote Karte «Einrichtung unvollständig» zeigt nur noch fehlende Pflichtpunkte (Medien, Benachrichtigungen). Der Zustand «Zurückgestellt» steht in Einstellungen › App-Berechtigungen. Ab 0.19.11 erscheint der Akku nur noch in der Berechtigungszeile (Akku-Einstellungen, «So geht es»), die Fotos-Zeile nur bei vorhandenem Fotos-Profil.
+  2. Das **WLAN-Symbol** («Im WLAN», Netz-Fingerabdruck) entfällt von der Profilkarte; «Bekannte Netze» und «Vergessen» im Profil bleiben.
+- **Begründung:** Die Akku-Ausnahme ist eine Empfehlung, keine Pflicht (DEC-286: nur noch über die Systemliste); eine rote Karte ohne Ausweg wirkt wie ein Fehler. Das WLAN-Symbol hat ohne WLAN-Namen (DEC-287) keine Aussage mehr.
+- **Alternativen:** — (in der Quelle nicht genannt).
+- **Konsequenzen:** DEC-055 und DEC-289 Punkt 1 teilweise überholt (Akku kein Pflichtpunkt mehr); DEC-270 und DEC-287 aktualisiert. Hilfe (`docs/hilfe/`) angepasst. Quelle: UX-Specialist (SYNC-20261115-372, -383), Development (-382); von Documentation nicht im Code nachgeprüft.
+- **Ergänzung (2026-11-16, DEC-296, DEC-297):** Die Tipp-Karte ist seit 0.20.0 eine Seite der Sammelkachel «Meldungen» (Stufe 6, ungefärbt) und steht nicht mehr unter dem Statuskasten. Nach «Nicht jetzt» erscheint sie einmal erneut, wenn ein Lauf ohne Vordergrund erkannt wurde; der Knopf öffnet die App-Info (0.20.8, 0.20.13).
+- **Betroffene Komponenten:** `ui/Permissions.kt`, `ui/HomeParts.kt`, `ui/HomeScreen.kt`, `ui/PermissionRows.kt`
+- **Abhängigkeiten:** DEC-055, DEC-270, DEC-287, DEC-289
+
+### DEC-296: Meldungen je Ursache und Sammelkachel «Meldungen» auf der Startseite
+- **Status:** Implemented *(0.20.0 bis 0.20.2 laut Development SYNC-20261115-409/-414/-416/-418; Benutzerfreigabe 2026-11-15 (Chat UX zu -401, Entscheide zu -402); nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-15
+- **Kategorie:** UI / Startseite / Hintergrund
+- **Entscheidung:**
+  1. **Gruppierung nach Ursache statt je Profil** (`ProblemGrouping.group`): nach PC (`pcGuid` vor Host), PC + Freigabe, PC + Benutzer + Domäne, Gerät; Schutzbremse und fehlende Ordner je Profil. Der Zustand bleibt je Profil (`ProblemStore`, SharedPreferences `problems`, je Profil höchstens ein Eintrag, nicht in der Sicherung); die Gruppe ist nur Ansicht, kein Fehler verschwindet durch die Gruppierung. Sortierung: Stufe, mehr Profile, älter, Name.
+  2. **Stufen:** 1 Schutzbremse, 2 Sicherheit, 3 Benutzer muss handeln (inkl. «Wiederherstellung fehlgeschlagen»), 4 Datei-Entscheidungen (Konflikte, Monatsordner, Löschbestätigung), 5 vorübergehend («PC nicht erreichbar» erst nach 24 Stunden ohne erfolgreichen Lauf), 6 Tipps (Akku, Herunterziehen) und Import-Checkliste (ungefärbt, UX).
+  3. **Startseite:** Reihenfolge Pflichtberechtigung, Statuskarte, Sammelkachel, Profile, Werkzeuge (ersetzt die Reihenfolge «Entscheidungen vor Status» aus 0.19.12). Die Sammelkachel «Meldungen» ist eine Blätterkachel (eine Gruppe zur Zeit, Zähler und Pfeile, `MessagePager`, `MessagesCard`); es gibt kein Ausblenden echter Fehler. Färbung nach der höchsten Schwere: Stufen 1 bis 3 rötlich, 4 und 5 gelb, Tipps und Checkliste ungefärbt. Die Statuskarte zeigt vorgemerkte Löschungen und Wiederherstellungen; bei Schrift ab 1,5 mit sichtbarer Kachel ein kleinerer Hund (0.20.1; in 0.20.7 wieder gross, siehe PATCHNOTES). Import-Start zusammengefasst («n Profile warten auf die erste Synchronisierung», «Jetzt starten», erst wenn kein Ordner- oder Verbindungstest-Schritt offen ist).
+  4. **Statusüberschrift** (Wortlaut DE / EN, Benutzerentscheid 2026-11-15): «Fehler» / «Errors» bei Stufen 1 bis 3 oder fehlender Pflichtberechtigung; «Wartet auf dich» / «Waiting for you» bei Stufe 4 (Konflikte sind seit 0.20.1 kein Fehler mehr); «Meldungen» / «Messages» bei Stufe 5. Vorrang: läuft, nichts eingerichtet, Fehler, Wartet auf dich, Meldungen, kein aktives Profil, pausiert, keine Verbindung. Warnton (Amber) für «Wartet auf dich» und «Meldungen», Fehler rot (0.20.2). Profilkarten zeigen Stufen 1 bis 3 als rote Textzeile; die Schutzbremse hat keine eigene Karte mehr, sondern steht in der Kachel (Etikett «Entscheidung nötig · Synchronisierung angehalten»).
+  5. **Aktionen:** Eine Sicherheitsabsenkung gibt es nur je Profil. «Erneut versuchen» wirkt nur auf die Gruppe (`SyncScheduler.enqueueManualFor`, Zustand «Wird erneut versucht» aus den Auftrags-Tags). Ein neues Passwort gilt einmal je PC und Konto: zuerst ein Anmeldeversuch, bei Erfolg Speichern für die gewählten Profile.
+  6. **Benachrichtigung:** eine Sammelmeldung je Lauf mit einer Zeile je Ursache, alle fehlgeschlagenen Profile. `SyncWorker` schreibt je Profil Einträge (Vorprüfung, Laufergebnis FAILED/PARTIAL) und löscht sie bei Erfolg, beim Löschen des Profils und bei bestandener Vorprüfung; ein Fehler von Profil A bleibt, wenn B läuft.
+- **Begründung:** Mehrere Profile desselben PCs meldeten dieselbe Ursache mehrfach; die Gruppierung zeigt die Ursache einmal, ohne dass ein Fehler verloren geht.
+- **Alternativen:** Room-Tabelle (verworfen: Schemaänderung für flüchtige Zustände); Ableitung aus dem Bestand (nicht möglich); Vorprüfungen als Verlaufseintrag (verworfen).
+- **Konsequenzen:** Ersetzt die Kartenreihenfolge aus 0.19.12 (DEC-295, DEC-288); ergänzt DEC-270. Hilfe angepasst (Startseite, «Meldungen»). Quelle: Architecture (SYNC-20261115-402, -410), UX-Specialist (-401, -408), Development (-409, -414, -416, -418); von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** `sync/Problems.kt` (`ProblemKind`, `ProblemStore`, `ProblemGrouping`), `ui/MessagePager.kt`, `ui/MessagesCard.kt`, `ui/HomeScreen.kt` (`HomeStatus`), `sync/SyncWorker.kt`, `sync/SyncScheduler.kt`, `sync/Notifications.kt`
+- **Abhängigkeiten:** DEC-270, DEC-288, DEC-290, DEC-295
 
 ---
 
@@ -3236,7 +3603,7 @@ Pausiert angezeigt.
 - **Abhängigkeiten:** DEC-004, DEC-092, DEC-110
 
 ### DEC-200: Sicherheitsprüfung mit claude-security
-- **Status:** Proposed
+- **Status:** Rejected *(Inhaber 2026-11-08: wird nicht umgesetzt, siehe Anhang A Punkt 22; Korrektur durch Documentation, SYNC-20261114-324)*
 - **Datum:** 2026-11-08 (2026-11-04 bis 2026-11-08)
 - **Kategorie:** Sicherheit
 - **Entscheidung:** Der Inhaber möchte LeoSync mit dem Werkzeug claude-security prüfen lassen (Schwerpunkte: Zugangsdaten, Sicherung, SMB-Pfade, Selbst-Update, exportierte Komponenten). Der Lauf fand nicht statt: Das Werkzeug verlangt die ausdrückliche Zustimmung zu den Kosten und die Einstellung „Dynamic workflows“; als Unteragent ohne Workflow-Werkzeug startet es nicht.
@@ -3263,7 +3630,7 @@ Pausiert angezeigt.
 ## 14. Verteilung: Updates, Play Store und Support
 
 ### DEC-056: Selbst-Update über GitHub Releases mit Installation per Tippen
-- **Status:** Implemented
+- **Status:** Superseded *(ersetzt durch DEC-286: Selbst-Update entfällt mit der Umstellung auf «nur Play Store»; Entfernung im Code: SYNC-20261114-346; bis dahin gilt der beschriebene Stand der Version 0.17.x)*
 - **Datum:** 2026-11-08 (2026-11-01)
 - **Kategorie:** Sicherheit
 - **Entscheidung:**
@@ -3305,7 +3672,7 @@ Pausiert angezeigt.
 - **Kategorie:** Architektur
 - **Entscheidung:** LeoSync soll offiziell in den Play Store. Inhalt der Vorbereitung:
   - ~~PC-Erkennung statt WLAN-Name: jedes ungemessene WLAN, Port-445-Test, Prüfung der SMB-Server-GUID **vor** dem Senden der Zugangsdaten; WLAN-Name nur optional mit freiwilliger Standortfreigabe; Bedingung: genauso zuverlässig wie heute.~~ *(Seit 2026-11-09 nicht mehr Teil der Play-Vorbereitung, siehe Aktualisierung unten; Inhalt bleibt als Vorgabe für die eigenständige PC-Erkennung erhalten.)*
-  - Zwei App-Varianten (`github` mit Selbst-Update, `play` ohne `REQUEST_INSTALL_PACKAGES`).
+  - ~~Zwei App-Varianten (`github` mit Selbst-Update, `play` ohne `REQUEST_INSTALL_PACKAGES`).~~ *(Seit 2026-11-14 überholt: keine Varianten, nur Play Store, siehe DEC-286.)*
   - Aktuelles `targetSdk`, Umgang mit dem 6-Stunden-Limit für dataSync ab Android 15.
   - Datenschutzerklärung DE/EN (nDSG, DSGVO) über GitHub Pages; AGB sind nicht nötig.
   - Ursprünglich als 0.4.0 geplant; der Inhaber hat am 2026-11-02 entschieden, dass sie nicht in 0.4.0 kommt („wird, was es halt wird“); die Versionsnummer ist offen.
@@ -3317,7 +3684,7 @@ Pausiert angezeigt.
 - **Aktualisierung (2026-11-09, Entscheid Inhaber, SYNC-20261109-046):** Die Play-Store-Integration bleibt vorerst unspezifiziert und wird nur als offene Punkte geführt (unten). Die PC-Erkennung ist nicht mehr Teil der Play-Vorbereitung und hängt nicht vom Play Store ab; sie wird eigenständig umgesetzt (Development SYNC-20261109-047); verbindliche Vorgabe: DEC-204 (Version 0.13.0). Heutige Erreichbarkeit: TCP-Port 445, 3 s, ohne Anmeldung (`SmbSession.isReachable`).
 - **Offene Punkte Play-Store-Integration:**
   - Play-Konto und Tester fehlen. Geschlossener Test mit 12 Testern über 14 Tage, 25 USD, Identitätsprüfung. Kein Früh-Upload zur Reservierung der Paket-ID.
-  - Flavors `github`/`play`: `play` ohne Selbst-Update und ohne `REQUEST_INSTALL_PACKAGES`. Paket-ID `ch.leo.sync` nur für `play` (DEC-110, DEC-124). Die GitHub-Variante entfällt nach dem Play-Start, Umzug per Export/Import.
+  - ~~Flavors `github`/`play`: `play` ohne Selbst-Update und ohne `REQUEST_INSTALL_PACKAGES`. Paket-ID `ch.leo.sync` nur für `play` (DEC-110, DEC-124). Die GitHub-Variante entfällt nach dem Play-Start, Umzug per Export/Import.~~ *(Seit 2026-11-14 ersetzt durch DEC-286: keine Flavors; ein Build mit `ch.leo.sync`, ohne Selbst-Update; Umzug per Export/Import.)*
   - Umgang mit dem 6-Stunden-Limit für dataSync-FGS ab Android 15.
   - Datenschutzerklärung DE/EN (nDSG, DSGVO) über GitHub Pages; Kontakt `leotools@protonmail.com`.
   - Vor dem ersten AAB-Upload prüfen, ob Ressourcen-Namen verkürzt werden und Kennungen falsch aufgelöst werden (QA-Risiko aus SYNC-20261109-040, LOW; siehe `TESTING.md` Abschnitt 10).
@@ -3334,6 +3701,7 @@ Pausiert angezeigt.
 - **Alternativen:** `com.sync2pc.app` behalten (DEC-007); eindeutigere ID wie `ch.leotools.sync` (genannt, nicht gewählt).
 - **Konsequenzen:** Für Android eine neue App; das Selbst-Update der alten App kann nicht auf die neue umsteigen. Keystore-Alias darf neu sein, Passwörter kommen über den Import.
 - **Aktualisierung (Session 3):** Präzisiert durch DEC-124: Nur die Play-Variante erhält `ch.leo.sync`; die GitHub-Variante bleibt bis zum Play-Start `com.sync2pc.app` und wird danach nicht mehr unterstützt.
+- **Aktualisierung (2026-11-14, DEC-286):** Es gibt keine Varianten mehr: der einzige Build trägt `applicationId = "ch.leo.sync"` (Debug `ch.leo.sync.debug`), `namespace` bleibt `com.sync2pc.app`. Der Umzug geht nur über Export/Import; die alte App bleibt installierbar, bis der Benutzer sie entfernt.
 - **Betroffene Komponenten:** geplant: `app/build.gradle.kts`, Paketordner, FileProvider-Authority
 - **Abhängigkeiten:** ersetzt DEC-007; DEC-089, DEC-109
 
@@ -3371,7 +3739,7 @@ Pausiert angezeigt.
 - **Abhängigkeiten:** DEC-109, DEC-121
 
 ### DEC-124: Nur die Play-Variante erhält `ch.leo.sync`
-- **Status:** Accepted
+- **Status:** Superseded *(ersetzt durch DEC-286: keine Varianten, ein Build mit `ch.leo.sync`; Benutzerentscheid 2026-11-14)*
 - **Datum:** 2026-11-08 (2026-11-03)
 - **Kategorie:** Android
 - **Entscheidung:** Die Play-Variante bekommt `ch.leo.sync`; die GitHub-Variante behält bis zum Play-Start `com.sync2pc.app`. Sobald LeoSync im Play Store ist, wird die GitHub-Variante nicht mehr unterstützt. Kein Früh-Upload zum Reservieren der ID.
@@ -3391,6 +3759,41 @@ Pausiert angezeigt.
 - **Konsequenzen:** Die Texte muss der Inhaber auf der Produktseite einbinden und bei Änderungen nachführen.
 - **Betroffene Komponenten:** `ui/HomeScreen.kt`, `HELP_URL` (ui/HomeParts.kt), `docs/hilfe/hilfe-de.md`, `docs/hilfe/help-en.md`
 - **Abhängigkeiten:** DEC-123
+
+### DEC-286: Nur Play Store, keine Varianten
+- **Status:** Implemented *(0.19.0 laut Development SYNC-20261114-346; Benutzerentscheid 2026-11-14; Release-Prüfung QA SYNC-20261114-347 offen, R8-Release nicht gebaut; nicht im Code nachgeprüft)*
+- **Datum:** 2026-11-14
+- **Kategorie:** Verteilung / Android
+- **Entscheidung:** LeoSync wird nur noch über Google Play verteilt, ohne Flavors (Vorschlag der Auftragsbeschreibung, nach Benutzerentscheid übernommen):
+  1. **Ein Build** mit `applicationId = "ch.leo.sync"` (Debug `ch.leo.sync.debug`); `namespace` bleibt `com.sync2pc.app` (Kotlin-Pakete, Testklassen, Room-Schema-Pfade und Testbefehle bleiben unverändert).
+  2. **Selbst-Update entfällt** vollständig (Paket `update/*`, Update-Seite und -Menüpunkt, Einplanung im `SyncScheduler`, Berechtigung `REQUEST_INSTALL_PACKAGES`, `UPDATE_REPO`). Die Aktualisierung kommt über Google Play. Die GitHub-Releases `com.sync2pc.app` sind nur noch Geschichte: keine Pflege und kein Hinweis in alten Versionen.
+  3. **Akku-Ausnahme** nur über die Systemliste (`ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`); `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` entfällt (DEC-289).
+  4. **Signierung:** Play App Signing mit einem neuen Upload-Schlüssel (nur lokal, nie im Repo); der alte, von Play Protect eingestufte Schlüssel (DEC-111) erscheint nicht mehr.
+  5. **Ausgabe:** Der Builder erzeugt ein AAB (für Play), eine signierte APK (eigene Tests) und eine Debug-APK.
+  6. **Umzug** von der alten GitHub-App nur über Export/Import (DEC-110, DEC-290); es gibt keine andere Datenübernahme.
+  7. **R8/Ressourcen:** `res/raw/keep.xml` sichert die zur Laufzeit per Name aufgelösten Texte (`@string/*`, `@plurals/*`) im Release-AAB ab (DEC-109 offener Punkt, TESTING.md).
+- **Begründung:** Wunsch des Inhabers, nur den Play Store zu bedienen («Releases sind Geschichte»); zwei Varianten verdoppeln Prüfung und Pflege und der Selbst-Update-Pfad ist ein Play-Policy-Risiko (`REQUEST_INSTALL_PACKAGES`).
+- **Alternativen:** Zwei Flavors `github`/`play` (DEC-124, Source-Sets `src/github` und `src/play`): verworfen.
+- **Konsequenzen:** Ersetzt DEC-124 und DEC-056 (Selbst-Update); aktualisiert DEC-109 und DEC-110 (Flavors entfallen). Der Teil «Update-Kompatibilität» der Migration LeoToolset (SYNC-20261113-319) ist hinfällig. Neue Nutzer der GitHub-App erhalten keinen Hinweis (bewusst). Die alte und die neue App dürfen nicht gleichzeitig dieselben Ordner synchronisieren (Hinweis in Hilfe und Umzugsseite). Texte für die Play-Konsole stehen in `docs/play-console.md` (Inhaber reicht ein). Risiken: Play-Prüfung des dataSync-Vordergrunddienstes und des Foto-/Video-Vollzugriffs; R8 nur im signierten Release prüfbar; Akku-Freistellung nur noch über die Liste (mehr Nutzer setzen sie womöglich nicht). **Keine Anzeige der Patchnotes in der App** nach einem Update; die Änderungen nennt Google Play («Neuigkeiten») je Release (Benutzerentscheid 2026-11-15 zu SYNC-20261115-378); die Erwartung «Patchnotes erscheinen» aus der Release-Prüfung -347 entfällt. Quelle: Auftrag SYNC-20261114-348 (Architecture), SYNC-20261115-387; von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** `app/build.gradle.kts`, `AndroidManifest.xml`, `update/*` (entfernt), `SyncScheduler`, `BootReceiver`, `GlobalSettings`, `res/raw/keep.xml`, `tools/build.ps1`
+- **Abhängigkeiten:** DEC-056 (ersetzt), DEC-109, DEC-110, DEC-111, DEC-124 (ersetzt)
+- **Weiterführend:** Umzug zum Veröffentlichungsort LeoToolset: DEC-293.
+
+### DEC-293: Umzug zu LeoToolset (Produktseite, Veröffentlichungsordner)
+- **Status:** Accepted *(Benutzerentscheide 2026-11-15 zu SYNC-20261114-345; Links in der App seit 0.19.3 umgesetzt, SYNC-20261115-368; Rest sind Inhaberschritte)*
+- **Datum:** 2026-11-15
+- **Kategorie:** Verteilung / Arbeitsregeln
+- **Entscheidung:**
+  1. **Update-Kompatibilität entfällt** (DEC-286, kein Selbst-Update). Die alte GitHub-App `com.sync2pc.app` fragt weiter `Apop85/Sync2PC` ab und findet das letzte alte Release, bewusst ohne Hinweis; ein Brücken-Release ist verworfen.
+  2. **Produktseite** neu `https://leotoolset.github.io/leosync/` (Hilfe: `hilfe.html`, `en/help.html`, Anker `#verschluesselung` bzw. `#encryption`); die Seiten auf `apop85.github.io` leiten per `meta refresh` weiter und bleiben bestehen. `HELP_URL` in der App zeigt seit 0.19.3 auf die neue Adresse.
+  3. **Arbeitsordner bleibt Sync2PC.** Der Klon `C:\Users\rbald\Documents\GitHub\LeoSync` (Remote `LeoToolset/LeoSync`) ist nur Veröffentlichungsordner; der Inhaber überträgt den Stand vor dem Push (keine Regelwerksänderung).
+  4. **Umfang der Veröffentlichung:** `coordination/` und `.claude/` werden vollständig veröffentlicht (Transparenz, Wunsch des Inhabers). Ausnahme: Aufträge und Doku-Abschnitte zu noch nicht behobenen Sicherheitslücken (derzeit SYNC-20261115-360, -365, -366 und die daraus entstehenden Texte in SYNC-ENGINE.md 10.2/§17, DEC-292) veröffentlicht der Inhaber erst, wenn die behebende Version im Play Store ist. Die Prüfung vom 2026-11-15 fand keine Zugangsdaten; persönliche Angaben (eine E-Mail-Adresse, private IP-Adressen des Heimnetzes, der Windows-Benutzerpfad) werden bewusst mitveröffentlicht.
+  5. **Offen, später anzuhängen:** Archivierung von `Apop85/Sync2PC` (Inhaberschritt nach Anleitung C in -345); Umfang weiterer Veröffentlichungen.
+- **Begründung:** Benutzerentscheid; Transparenz.
+- **Alternativen:** Brücken-Release für die alte App: verworfen.
+- **Konsequenzen:** Adressen in `PRIVACY_GER.md`, `PRIVACY_EN.md`, `README.md`, `build.md` und `docs/hilfe/` sind nachgeführt, wo die alte Adresse oder das Repository `Apop85/Sync2PC` genannt war (die Download-Zeile in `README.md` nennt die alten GitHub-Releases bewusst weiter als Geschichte). Quelle: Auftrag SYNC-20261115-369 (Architecture); von Documentation nicht im Code nachgeprüft.
+- **Betroffene Komponenten:** `ui/HomeParts.kt` (`HELP_URL`), `diag/Redactor`
+- **Abhängigkeiten:** DEC-197, DEC-286, DEC-292
 
 ---
 
@@ -4032,10 +4435,10 @@ Pausiert angezeigt.
 5. **NDK-Strip-Warnung stummschalten:** angeboten, keine Antwort; Inhaber fragte 2026-11-08 nach der Bedeutung. Im Repository nicht weiter belegt. Inhaber 2026-11-08: vorerst pending.
 6. **Wirksamkeit des Fortsetzens auf dem Gerät des Inhabers:** In Session 2 geklärt: Gerät OnePlus 9 Pro (OxygenOS 14); der Oplus-Killer beendete die App auch im Vordergrunddienst. Nach „Hintergrundaktivität zulassen“ keine neuen Kills; Fortsetzen nach WLAN-Trennung im Feldtest bestätigt. Ob „Automatischer Start“ zusätzlich gesetzt wurde, ist offen.
 7. ~~**HEIC im Import-Skript:**~~ – Inhaber 2026-11-08: Das Skript war nur für den Inhaber, Punkt wird ignoriert.
-8. **Verhalten nach dem 6-Stunden-Limit des dataSync-Dienstes (Android 15+):** Rückfall vorhanden, Wirksamkeit offen; Teil der Play-Store-Vorbereitung (DEC-109).
+8. **Verhalten nach dem 6-Stunden-Limit des dataSync-Dienstes (Android 15+):** Rückfall vorhanden, Wirksamkeit offen; Teil der Play-Store-Vorbereitung (DEC-109). Die Entscheidungsvorlage B3 (PauseService-Laufzeitgrenze) steht in SYNC-20261114-320; **entschieden 2026-11-15: Variante A, 30 Minuten ab Android 15 (DEC-294, 0.19.10)**. Speichermessung SYNC-20261114-335: Heap-Spitze 25,6 MB bei 15'504 Dateien, unkritisch bis mindestens 60'000 Dateien (SYNC-ENGINE.md §17). Messlauf -390 abgeschlossen (API 36; onTimeout, Doze und Standby rare/restricted nicht im Emulator messbar, SYNC-ENGINE.md §17, TESTING.md §14.8).
 9. ~~**Versionsnummer der Play-Store-Vorbereitung**~~ – erledigt: DEC-125 (Session 3), später durch DEC-188 ersetzt (0.12.0 Play Store, 0.13.0 PC-Erkennung).
 10. ~~**Kontakt-E-Mail**~~ – erledigt: `leotools@protonmail.com` (DEC-123).
-11. **Play-Protect-Einspruch** (DEC-111): Text vorbereitet; ob eingereicht und mit welchem Ergebnis, ist offen.
+11. **Play-Protect-Einspruch** (DEC-111): Text vorbereitet; ob eingereicht und mit welchem Ergebnis, ist offen. Mit DEC-286 (Play-only, Play App Signing mit neuem Upload-Schlüssel) erscheint der betroffene Schlüssel in der neuen App nicht mehr; der Einspruch betrifft nur noch die alten GitHub-Releases.
 12. **Wirksamkeit der Erinnerung „lange nicht gesichert“** (DEC-090): auf dem Gerät noch nicht beobachtet.
 13. ~~**Verwendung der Server-GUID** (DEC-109)~~ – erledigt: Inhaber 2026-11-09 Vorgabe freigegeben, als DEC-204 festgelegt (Ablauf bei Kennungswechsel dort, Punkt 3); Umsetzung offen (Development SYNC-20261109-047).
 
@@ -4055,7 +4458,7 @@ Pausiert angezeigt.
 
 *Session 5:*
 
-22. ~~**Sicherheitsprüfung mit claude-security** (DEC-200)~~ – Inhaber 2026-11-08: wird nicht umgesetzt, verworfen. (Status von DEC-200 selbst unverändert; Anpassung ggf. durch Architecture.)
+22. ~~**Sicherheitsprüfung mit claude-security** (DEC-200)~~ – Inhaber 2026-11-08: wird nicht umgesetzt, verworfen. (Status von DEC-200 seit 2026-11-14 auf Rejected gesetzt.)
 23. **Ungeprüfte Teile von 0.9.5–0.11.0:** Restzeit im echten Lauf, Ansagen mit TalkBack, Berechtigungen bei einer Neuinstallation, strengere Hintergrund-Kontingente unter Android 16 bei langen Erstsicherungen.
 24. **Ordner anlegen in der PC-Ordnerauswahl** (DEC-192): heute muss der Zielordner auf dem PC existieren; ob die Auswahl Ordner anlegen können soll, war nicht entschieden. ~~erledigt~~: Inhaber 2026-11-08 „Ordner anlegen“, umgesetzt in 0.11.3 (SYNC-20261108-006, DEC-192 Nachtrag).
 25. **Nicht mehr verwendete Texte** (z. B. `profile_subfolder*`, `profile_browse`, `settings_battery_off`, `profile_delete_cd`): aufräumen oder behalten ist nicht entschieden. Stand 2026-11-08: Die Texte stehen in beiden Sprachdateien, werden im Kotlin-Code aber nicht verwendet (geprüft per Suche in `app/src`); Inhaber 2026-11-08: aufräumen (SYNC-20261108-013). **Umgesetzt in 0.11.8:** entfernt (EN/DE) `profile_subfolder`, `profile_subfolder_example_mirror`, `profile_subfolder_example_photos`, `profile_browse`, `settings_battery_off`, `profile_delete_cd`; vorher per Suche in `app/src` nur Definitionen gefunden. `profile_subfolders*` bleibt.
@@ -4136,22 +4539,22 @@ Die Punkte 1 bis 4 beruhen nicht auf dieser Session, sondern auf dem aktuellen D
 8. **Unbegrenzter Papierkorb** beim Ordner-Sync.
 9. **Ländererkennung:** An Grenzen und Küsten ungenau (1:50m); HEIC ohne GPS im PC-Import.
 10. **Kotlin-Fallen:** `/**` in Blockkommentaren (Build-Fehler). In PowerShell liefert `$null -notmatch` `$null`, was im Import-Skript fast zu Kopien ohne Bestätigung führte.
-11. **Doppelte Logik:** Teil-Prüfsumme, Ordnerregeln und Länderregeln existieren doppelt (Kotlin und C#) und müssen synchron bleiben.
-12. **Play-Store-Konformität:** Hintergrund-Standort, Akku-Ausnahme, `REQUEST_INSTALL_PACKAGES` und der dataSync-Vordergrunddienst brauchen für eine Veröffentlichung Begründungen.
+11. ~~**Doppelte Logik:** Teil-Prüfsumme, Ordnerregeln und Länderregeln existieren doppelt (Kotlin und C#) und müssen synchron bleiben.~~ – entfallen: Das C#-Importskript wird nicht mehr gepflegt (DEC-068, Aktualisierung 2026-11-09); `ARCHITECTURE.md` §11 Regel 11 ist ebenfalls entfallen.
+12. **Play-Store-Konformität:** ~~Hintergrund-Standort, Akku-Ausnahme, `REQUEST_INSTALL_PACKAGES`~~ und der dataSync-Vordergrunddienst brauchen für eine Veröffentlichung Begründungen. *(Seit DEC-286/DEC-287 entfallen Hintergrund-Standort, direkte Akku-Ausnahme und `REQUEST_INSTALL_PACKAGES`; offen bleiben die Begründungen für den dataSync-Vordergrunddienst und den Foto-/Video-Vollzugriff, vorbereitet in `docs/play-console.md`; Umsetzung der Entfernung: SYNC-20261114-346 und -351.)*
 
 *Session 2 zusätzlich:*
 
-13. **Play-Protect-Sperre:** Die App ist als „schädlich“ eingestuft (alle Versionen mit demselben Zertifikat). Neue Nutzer würden blockiert; jede neue APK kann neu bewertet werden.
+13. **Play-Protect-Sperre:** Die App ist als „schädlich“ eingestuft (alle Versionen mit demselben Zertifikat). Neue Nutzer würden blockiert; jede neue APK kann neu bewertet werden. *(Gilt nur für die alten GitHub-Releases; die Play-Version nutzt Play App Signing mit neuem Upload-Schlüssel, DEC-286.)*
 14. **Hersteller-Killer:** Auf Oplus-Geräten beendet `o-kill` die App auch im Vordergrunddienst; Zuverlässigkeit hängt von Einstellungen des Nutzers ab (DEC-082).
 15. **Sicherungsdatei:** Ohne Export-Passwort enthält sie keine Passwörter, aber Pfade, IP-Adressen und den Sync-Status; das Format muss rückwärtskompatibel bleiben (Formatversion 1).
 16. **Download-Fortsetzung:** Hängt davon ab, dass der SAF-Anbieter „wa“ unterstützt; sonst wird nach der Grössenprüfung neu begonnen.
 17. **Zustände in `GlobalSettings`:** `awaitingFirstStart`, `manualOnly`, `pausedUntil` und Benachrichtigungs-Schalter liegen ausserhalb der Datenbank und werden (bis auf einzelne Einstellungen) nicht exportiert; bei Neuinstallation gehen sie verloren.
 18. **Ausgeschaltete Hinweise:** Mit `notifyHints = false` fallen offene Ordnerauswahlen, Konflikte und Fehler nur noch auf der Startseite auf.
-19. **Google Fotos „Speicherplatz freigeben“:** Löscht Google Fotos Originale, bevor LeoSync sie gesichert hat, landen sie nie auf dem PC.
+19. **Google Fotos „Speicherplatz freigeben“:** Löscht Google Fotos Originale, bevor LeoSync sie gesichert hat, landen sie nie auf dem PC. Entscheidungsvorlage B10 in SYNC-20261114-320: Hinweis in der Einrichtung bzw. der Hilfe, siehe DEC-275 (Hilfetext nach UX-Vorgabe, Design SYNC-20261114-339).
 20. **Versionsfalle:** Werden Änderungen unter einer bereits gebauten Version eingetragen, zählt der Builder automatisch hoch (Fall 0.3.6/0.3.7); Patchnotes müssen dann korrigiert werden.
 21. **PowerShell-Falle:** `[math]::Max/Min` mit Int-Literal und `long` wählt die Int32-Überladung und scheitert ab ca. 2 GB (Import-Skript, behoben in 0.3.3).
 22. **AGP 9 / built-in Kotlin:** KGP-Version und Compose-Compiler-Plugin müssen identisch bleiben; KSP 2.3 kennt nur KSP2 (Room ≥ 2.7 nötig).
-23. **Paketwechsel `ch.leo.sync`:** Für Android eine neue App; ohne Export und Import gehen Profile und Sync-Status verloren, das Selbst-Update kann nicht umsteigen.
+23. **Paketwechsel `ch.leo.sync`:** Für Android eine neue App; ohne Export und Import gehen Profile und Sync-Status verloren, das Selbst-Update kann nicht umsteigen (und entfällt mit DEC-286). Alte und neue App dürfen nicht gleichzeitig dieselben Ordner synchronisieren (Hinweis in Hilfe und geführtem Umzug, DEC-290); der Export enthält Passwörter und ist sicher aufzubewahren.
 
 *Session 3 zusätzlich:*
 

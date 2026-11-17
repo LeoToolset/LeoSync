@@ -5,6 +5,23 @@ import androidx.work.WorkInfo
 import com.sync2pc.app.R
 
 /**
+ * Markiert einen Unterbruch höchstens einmal je Lauf (SYNC-20261116-425): der frühe Aufruf direkt nach dem Stopp und der Aufruf im
+ * Abschluss dürfen keinen zweiten Fortsetzen-Auftrag und keinen zweiten Dienststart auslösen.
+ */
+class InterruptMarker {
+    private val done = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** true = [action] wurde jetzt ausgeführt; false = schon markiert */
+    fun mark(action: () -> Unit): Boolean {
+        if (!done.compareAndSet(false, true)) return false
+        action()
+        return true
+    }
+
+    val marked: Boolean get() = done.get()
+}
+
+/**
  * Reine Entscheidungen aus SyncWorker, WifiNetworkReceiver und SyncScheduler (SYNC-20261111-163, Stufe 1).
  * Verhaltensgleich ausgelagert, damit sie ohne Android-Laufzeit testbar sind; die Aufrufer behalten ihre Logik.
  */
@@ -15,6 +32,19 @@ object SyncDecisions {
      */
     fun resumeAfterStop(isStopped: Boolean, stopReason: Int, manual: Boolean): Boolean =
         isStopped && stopReason != WorkInfo.STOP_REASON_CANCELLED_BY_APP && !manual
+
+    /**
+     * Früh nach dem Stopp markieren (SYNC-20261116-425): WorkManager bricht die Coroutine ab und setzt den Stoppgrund erst danach.
+     * Der frühe Aufruf wartet darum höchstens [maxMs], bis `isStopped` wahr ist; ohne Stopp (normales Ende) nie markieren.
+     */
+    fun stopReasonPending(isStopped: Boolean, waitedMs: Long, maxMs: Long): Boolean = !isStopped && waitedMs < maxMs
+
+    /**
+     * SYNC-20261116-434: Zeigt «Pausiert» «wartet auf WLAN»? Nicht, wenn Android den Lauf wegen des Zeitlimits gestoppt hat und das
+     * erlaubte Netz noch da ist: dann setzt der Fortsetzen-Auftrag sofort fort («Wird fortgesetzt …»), es wird auf nichts gewartet.
+     */
+    fun pausedWaitsForWifi(stopReason: Int, networkAllowed: Boolean): Boolean =
+        !(stopReason == WorkInfo.STOP_REASON_TIMEOUT && networkAllowed)
 
     /** Text für den Verlauf: [res] mit optionalem Zahlenargument [arg] (Stoppgrund) */
     data class InterruptText(val res: Int, val arg: Int? = null)

@@ -44,18 +44,18 @@ object ProfileWizard {
 
     /**
      * Erster Schritt (in Schrittreihenfolge) mit leerem oder ungültigem Zahlenfeld, null = alle gültig (SYNC-20261110-120).
-     * Zahlenfelder gibt es nur bei Ordner-Profilen: Papierkorb-Tage und Prüfintervall (OPTIONS), Schutzbremse (GUARD).
+     * Zahlenfelder gibt es nur bei Ordner-Profilen: Papierkorb-Tage (OPTIONS), Schutzbremse (GUARD); das Prüfintervall ist seit 0.17.0 global.
      */
-    fun firstInvalidNumberStep(p: Profile, trashText: String, pollText: String, guardText: String): Step? = when {
+    fun firstInvalidNumberStep(p: Profile, trashText: String, guardText: String): Step? = when {
         p.type() != ProfileType.MIRROR -> null
-        !NumberInput.isValid(trashText, NumberInput.TRASH_DAYS) || !NumberInput.isValid(pollText, NumberInput.POLL_MINUTES) -> Step.OPTIONS
+        !NumberInput.isValid(trashText, NumberInput.TRASH_DAYS) -> Step.OPTIONS
         !NumberInput.isValid(guardText, NumberInput.GUARD_PERCENT) -> Step.GUARD
         else -> null
     }
 
     /** Hat [step] selbst ein ungültiges Zahlenfeld? Dann darf «Weiter» ihn nicht verlassen. */
-    fun numberBlocksStep(p: Profile, step: Step, trashText: String, pollText: String, guardText: String): Boolean =
-        firstInvalidNumberStep(p, if (step == Step.OPTIONS) trashText else "0", if (step == Step.OPTIONS) pollText else "15",
+    fun numberBlocksStep(p: Profile, step: Step, trashText: String, guardText: String): Boolean =
+        firstInvalidNumberStep(p, if (step == Step.OPTIONS) trashText else "0",
             if (step == Step.GUARD) guardText else "1") == step
 
     /**

@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -41,6 +42,11 @@ import com.sync2pc.app.mirror.MirrorEngine
 import com.sync2pc.app.data.AppDatabase
 import com.sync2pc.app.data.ConflictResolution
 import com.sync2pc.app.data.MirrorConflict
+import com.sync2pc.app.media.AndroidMediaProbe
+import com.sync2pc.app.media.BudgetedSource
+import com.sync2pc.app.media.MediaDims
+import com.sync2pc.app.media.MediaProbe
+import com.sync2pc.app.media.RangeSource
 import com.sync2pc.app.sync.Notifications
 import com.sync2pc.app.sync.SyncScheduler
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +55,25 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 
+
+/** «4000 × 3000 px», bei Video zusätzlich die Dauer («1920 × 1080 px · 0:42») */
+@Composable
+private fun resText(d: MediaDims): String =
+    if (d.durationMs != null && d.durationMs > 0) str(R.string.conflict_res_video, d.width, d.height, MediaProbe.formatDuration(d.durationMs))
+    else str(R.string.conflict_res, d.width, d.height)
+
+/** Handy-Seite live über den lokalen Dateizugriff lesen (nicht über MediaStore-Spalten); jede Ausnahme = unbekannt */
+private fun readLocalDims(ctx: android.content.Context, profile: com.sync2pc.app.data.Profile?, c: MirrorConflict): MediaDims? = try {
+    val uri = profile?.localTreeUri?.takeIf { it.isNotBlank() }
+    if (uri == null) null else {
+        val tree = com.sync2pc.app.mirror.LocalTree(ctx, android.net.Uri.parse(uri))
+        val e = tree.find(c.relPath)
+        if (e == null) null else AndroidMediaProbe.read(c.relPath, BudgetedSource(object : RangeSource {
+            override val size: Long = e.size
+            override fun readAt(offset: Long, length: Int): ByteArray = tree.readAt(e.docId, offset, length)
+        }))
+    }
+} catch (ce: kotlin.coroutines.cancellation.CancellationException) { throw ce } catch (e: Exception) { null }
 
 /** Dateiname ohne Ordner für Meldungen */
 private fun fileName(c: MirrorConflict): String = c.relPath.substringAfterLast('/').substringAfterLast('\\')
@@ -150,6 +175,14 @@ fun ConflictScreen(onBack: () -> Unit) {
                 val newer = "  " + str(R.string.conflict_newer)
                 // B5: nicht trennbare Einheit (geschütztes Leerzeichen), sonst bricht «(gleich alt)» innerhalb der Klammer um
                 val same = "  " + str(R.string.conflict_same_age).replace(' ', ' ')
+                // SYNC-20261115-367: Auflösung (Video: Dauer) beider Seiten; Handy-Seite live gelesen, PC-Seite aus dem Lauf. Nur beschriftet, nie vorausgewählt.
+                val isMedia = MediaProbe.isMedia(c.relPath)
+                val localDims by produceState<MediaDims?>(null, c.profileId, c.relPath, c.localModified, c.localSize) {
+                    value = if (!isMedia) null else withContext(Dispatchers.IO) { readLocalDims(ctx, profiles.firstOrNull { it.id == c.profileId }, c) }
+                }
+                val remoteDims = if ((c.remoteWidth ?: 0) > 0 && (c.remoteHeight ?: 0) > 0) MediaDims(c.remoteWidth!!, c.remoteHeight!!, c.remoteDurationMs) else null
+                val localBigger = localDims != null && remoteDims != null && localDims!!.pixels > remoteDims.pixels
+                val remoteBigger = localDims != null && remoteDims != null && remoteDims.pixels > localDims!!.pixels
                 SectionCard {
                     Text(c.relPath, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     if (profiles.size > 1) Hint(str(R.string.decision_profile, profileName))
@@ -157,6 +190,10 @@ fun ConflictScreen(onBack: () -> Unit) {
                         if (sameAge) same else if (localNewer) newer else "")
                     Text("💻 " + str(R.string.side_pc) + ": ${formatTimeSec(c.remoteModified)} · ${Notifications.formatBytes(c.remoteSize)}" +
                         if (sameAge) same else if (!localNewer) newer else "")
+                    // Auflösungszeilen (fehlt der Wert einer Seite, entfällt ihre Zeile, nie «–»)
+                    localDims?.let { Text("📱 " + resText(it) + if (localBigger) "  " + str(R.string.conflict_bigger) else "", style = MaterialTheme.typography.bodyMedium) }
+                    remoteDims?.let { Text("💻 " + resText(it) + if (remoteBigger) "  " + str(R.string.conflict_bigger) else "", style = MaterialTheme.typography.bodyMedium) }
+                    if (localDims != null || remoteDims != null) Hint(str(R.string.conflict_res_hint))
                     // Knöpfe untereinander, gleich breit (bei grosser Schrift nie abgeschnitten)
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedButton(

@@ -59,7 +59,7 @@ object Diagnostics {
         SyncScheduler.WORK_AUTO, SyncScheduler.WORK_MANUAL, SyncScheduler.WORK_FOLLOWUP,
         SyncScheduler.WORK_CONTENT, SyncScheduler.WORK_SAFETY, SyncScheduler.WORK_RETRY,
         SyncScheduler.WORK_REMOTE_POLL, SyncScheduler.WORK_RESUME, SyncScheduler.WORK_DEFERRED_AUTO,
-        SyncScheduler.WORK_DEFERRED_MANUAL, "update-check", "stale-check", SyncScheduler.WORK_PAUSE_END,
+        SyncScheduler.WORK_DEFERRED_MANUAL, "stale-check", SyncScheduler.WORK_PAUSE_END, SyncScheduler.WORK_RUN_GUARD,
     )
 
     /** Kopfzeilen, die jeder Export trägt (Zuordnung zum Gerät) */
@@ -77,7 +77,6 @@ object Diagnostics {
         val r = Redactor()
         // Bekannte sensible Werte zuerst erfassen, damit sie auch in Log, Fehlertexten und Abstürzen ersetzt werden
         val profiles = safe { dao.profiles() } ?: emptyList()
-        val currentSsid = safe { WifiHelper.currentSsid(ctx) }
         for (p in profiles) {
             r.register("Profil", p.name)
             SmbTarget.parse(p.smbPath)?.let { t ->
@@ -85,12 +84,10 @@ object Diagnostics {
             } ?: SmbTarget.hostOf(p.smbPath)?.let { r.register("Host", it) }
             p.smbUser.split('\\', '@').forEach { r.register("Benutzer", it) }
             r.registerFolders(p.remoteSubfolder)
-            r.registerAll("WLAN", p.ssids())
             if (p.pcGuid.isNotBlank()) r.register("PC-Kennung", p.pcGuid)
             p.folders().forEach { r.registerFolders(it) }
             p.localTreeUri.takeIf { it.isNotBlank() }?.let { r.registerFolders(safe { LocalTree.label(Uri.parse(it)) } ?: "") }
         }
-        currentSsid?.let { r.register("WLAN", it) }
         val runs = safe { dao.recentRuns(15) } ?: emptyList()
         runs.forEach { r.register("Profil", it.profileName) } // auch Profile, die es nicht mehr gibt
         buildString {
@@ -114,8 +111,6 @@ object Diagnostics {
             kv("Akkustand", safe { bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.let { "$it %" } })
 
             section("Berechtigungen")
-            kv("Standort (genau)", perm(ctx, Manifest.permission.ACCESS_FINE_LOCATION))
-            kv("Standort immer", perm(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION))
             kv("Medien-Standort", perm(ctx, Manifest.permission.ACCESS_MEDIA_LOCATION))
             if (Build.VERSION.SDK_INT >= 33) {
                 kv("Fotos", perm(ctx, Manifest.permission.READ_MEDIA_IMAGES))
@@ -124,13 +119,11 @@ object Diagnostics {
                 kv("Speicher lesen", perm(ctx, Manifest.permission.READ_EXTERNAL_STORAGE))
             }
             kv("Benachrichtigungen", safe { NotificationManagerCompat.from(ctx).areNotificationsEnabled() })
-            kv("Apps installieren", safe { ctx.packageManager.canRequestPackageInstalls() })
             kv("Ordnerfreigaben (SAF)", safe { ctx.contentResolver.persistedUriPermissions.size })
 
             section("Netzwerk")
-            kv("Standortdienst an", safe { WifiHelper.isLocationEnabled(ctx) })
             kv("Im WLAN", safe { WifiHelper.isOnWifi(ctx) })
-            kv("WLAN", currentSsid?.let { r.pseudo("WLAN", it) } ?: "(nicht lesbar)")
+            kv("Netz-Fingerabdruck bekannt", safe { WifiHelper.currentNetFingerprint(ctx)?.let { "ja (nicht angezeigt)" } ?: "nein" })
             kv("Netz", safe {
                 val cm = ctx.getSystemService(ConnectivityManager::class.java)
                 val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
@@ -151,17 +144,12 @@ object Diagnostics {
             kv("minFileAgeMinutes", s.minFileAgeMinutes)
             kv("Datenbankversion", safe { AppDatabase.get(ctx).openHelper.readableDatabase.version })
             kv("notifySummary", s.notifySummary)
-            kv("notifyUpdate", s.notifyUpdate)
             kv("notifyHints", s.notifyHints)
             kv("previewLimit", s.previewLimit)
             kv("homeCountryIso", s.homeCountryIso)
             kv("parallelUploads", s.parallelUploads)
-            kv("remotePollMinutes", s.remotePollMinutes)
-            kv("updateRepo", s.updateRepo)
-            kv("autoUpdateCheck", s.autoUpdateCheck)
-            kv("lastUpdateCheck", t(s.lastUpdateCheck))
-            kv("updateVersion", s.updateVersion.ifEmpty { "-" })
-            kv("updateInstalling", s.updateInstalling.ifEmpty { "-" })
+            kv("folderCheckMinutes", s.folderCheckMinutes)
+            kv("folderProfilesActive", s.folderProfilesActive)
             kv("shareRetryAt", t(s.shareRetryAt))
             kv("shareUnreachable", r.scrub(s.shareUnreachable).ifEmpty { "-" })
             kv("resumeOnWifi", s.resumeOnWifi)
@@ -195,7 +183,7 @@ object Diagnostics {
                     "${r.pseudo("PC-Kennung", p.pcGuid)} (Host ${if (p.pcGuidHost.isBlank()) "-" else r.pseudo("Host", p.pcGuidHost)})")
                 // Wie die Startseite: «PC erkannt / noch nicht erkannt» (gespeicherte Kennung gehört zum jetzigen Host)
                 kv("  PC-Status", pcStatus(p.pcMode(), p.pcGuid, p.pcGuidHost, SmbTarget.hostOf(p.smbPath).orEmpty()))
-                kv("  WLANs", p.ssids().joinToString(", ") { r.pseudo("WLAN", it) }.ifEmpty { "-" })
+                kv("  Bekannte Netze", com.sync2pc.app.sync.KnownNetStore.count(ctx, p.id))
                 if (p.type() == ProfileType.PHOTOS) {
                     kv("  Quellordner", p.folders().joinToString(", ") { r.folderPath(it) }.ifEmpty { "-" })
                     kv("  Fotos/Videos/Unterordner", "${p.includeImages}/${p.includeVideos}/${p.includeSubfolders}")
@@ -207,7 +195,6 @@ object Diagnostics {
                     kv("  Handy-Ordner", uri?.let { r.folderPath(LocalTree.label(it)) + if (LocalTree.hasPermission(ctx, it)) "" else " (ZUGRIFF FEHLT)" } ?: "-")
                     kv("  Löschungen übernehmen", p.propagateDeletes)
                     kv("  Konflikte", p.conflict().name)
-                    kv("  Prüfintervall", "${p.remotePollMinutes} min")
                     kv("  Papierkorb-Frist", if (p.trashRetentionDays > 0) "${p.trashRetentionDays} Tage" else "nie")
                     kv("  Schutzbremse ab", "${p.massDeletePercent} %")
                     kv("  Alte Versionen behalten", p.keepVersions)

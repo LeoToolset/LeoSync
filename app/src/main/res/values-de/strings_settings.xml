@@ -5,14 +5,11 @@
     <string name="settings_transfer">Übertragung</string>
     <string name="settings_permissions">App-Berechtigungen</string>
     <string name="settings_app">Sprache &amp; Sicherung</string>
-    <string name="settings_updates">Updates</string>
     <string name="settings_diagnose">Diagnose</string>
     <string name="settings_help">Hilfe &amp; Produktseite</string>
 
     <string name="settings_notify_summary">Meldung nach jeder Synchronisierung</string>
     <string name="settings_notify_summary_sub">z. B. „3 Dateien übertragen“</string>
-    <string name="settings_notify_update">Update verfügbar</string>
-    <string name="settings_notify_update_sub">Neue Version gefunden bzw. installiert</string>
     <string name="settings_notify_hints">Hinweise</string>
     <string name="settings_notify_hints_sub">Ordnerauswahl nötig, Konflikte, Dateien entfernen, Fehler. Erscheinen auch ohne Benachrichtigung auf der Startseite.</string>
     <string name="settings_notify_fixed">Die Fortschrittsanzeige während einer Synchronisierung und „Pausiert – wartet auf WLAN“ lassen sich nicht abschalten: Android verlangt sie, damit die Synchronisierung im Hintergrund weiterlaufen bzw. fortgesetzt werden kann.</string>
@@ -27,13 +24,16 @@
     <string name="settings_auto_wifi">Synchronisieren beim Verbinden mit Heim-WLAN</string>
     <string name="settings_auto_wifi_sub">Startet sofort, wenn ein WLAN eines Profils verbunden wird</string>
     <string name="settings_auto_offwifi">Auch über mobile Daten oder VPN synchronisieren</string>
-    <string name="settings_auto_offwifi_sub">Ausserhalb des WLANs wird der WLAN-Name nicht geprüft. Startet bei neuen Fotos, über das Sicherheitsnetz und die Ordnerprüfung. Kann viel Datenvolumen verbrauchen und Kosten beim Mobilfunkabo verursachen (z. B. im Ausland). Der PC muss erreichbar sein (VPN).</string>
+    <string name="settings_auto_offwifi_sub">Ausserhalb des WLANs wird der WLAN-Name nicht geprüft. Startet bei neuen Fotos, über das Sicherheitsnetz und die Prüfung der Ordner-Profile. Kann viel Datenvolumen verbrauchen und Kosten beim Mobilfunkabo verursachen (z. B. im Ausland). Der PC muss erreichbar sein (VPN).</string>
     <string name="settings_auto_new">Neue Fotos/Videos sofort übertragen</string>
     <string name="settings_auto_new_sub">Nur, wenn gerade ein Heim-WLAN verbunden ist</string>
     <string name="settings_auto_charging">Nur beim Laden</string>
     <string name="settings_auto_charging_sub">Automatische Synchronisierungen nur am Ladegerät (manuelles Synchronisieren immer möglich)</string>
-    <string name="settings_min_age">Mindestalter einer Datei (Minuten)</string>
-    <string name="settings_min_age_hint">Verhindert, dass Fotos übertragen werden, die gerade noch bearbeitet werden.</string>
+    <string name="settings_min_age">Mindestalter für Fotos (Minuten)</string>
+    <string name="settings_min_age_hint">Gilt für Fotoprofile. Neue Fotos und Videos werden übertragen, sobald das neuste davon dieses Alter erreicht hat. So kommt eine ganze Serie in einem Durchgang auf den PC, und Fotos, die gerade bearbeitet werden, werden nicht zu früh übertragen.</string>
+    <string name="settings_folder_check">Ordner-Profile: Prüfintervall (Minuten)</string>
+    <string name="settings_folder_check_hint">Gilt nur für Ordner-Profile: So oft fragt die App den PC nach Änderungen (mindestens 15), solange das Handy im Ziel-WLAN ist, und zusätzlich sofort beim Verbinden. Fotoprofile richten sich nach dem Mindestalter.</string>
+    <string name="settings_err_folder_check">Bitte eine Zahl von 15 bis 1440 eingeben.</string>
 
     <string name="settings_parallel">Parallele Übertragungen</string>
     <string name="settings_parallel_value">Gleichzeitige Übertragungen: %1$s</string>
@@ -64,7 +64,7 @@
     <string name="settings_diag_failed">Diagnose fehlgeschlagen: %1$s</string>
     <string name="settings_diag_busy">Sammle Daten…</string>
     <string name="settings_report">Problem melden</string>
-    <string name="settings_report_hint">Öffnet die Mail-App mit einer Nachricht an %1$s und den Diagnosedaten im Anhang. Es wird nichts automatisch gesendet: Nachricht prüfen und selbst senden. Die Daten können WLAN-Namen, Serveradressen und Dateinamen enthalten (keine Passwörter).</string>
+    <string name="settings_report_hint">Öffnet die Mail-App mit einer Nachricht an %1$s und den Diagnosedaten im Anhang. Es wird nichts automatisch gesendet: Nachricht prüfen und selbst senden. Die Daten können Serveradressen und Dateinamen enthalten (keine Passwörter).</string>
     <string name="settings_report_no_mail">Keine Mail-App gefunden. Die Adresse %1$s wurde in die Zwischenablage kopiert.</string>
     <string name="report_subject">LeoSync %1$s – Problembericht</string>
     <string name="report_body">Bitte beschreibe hier das Problem (was hast du gemacht, was hast du erwartet, was ist passiert?):\n\n</string>

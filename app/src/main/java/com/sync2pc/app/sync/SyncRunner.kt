@@ -12,8 +12,12 @@ interface SyncRunner {
     val wifiLost: Boolean
     /** Frühester Zeitpunkt für zu junge Dateien (0 = keine) */
     val nextYoungFileAt: Long get() = 0L
+    /** Spätester Reifezeitpunkt zu junger Dateien (die neuste junge Datei, SYNC-20261113-306); 0 = keine */
+    val newestYoungFileAt: Long get() = 0L
     /** Der Handy-Ordner hat sich während des Laufs verändert (Datei neu entstanden/gelöscht), Folgelauf nötig (SYNC-20261111-213) */
     val changedDuringRun: Boolean get() = false
+    /** In den Papierkorb verschobene Dateien dieses Laufs (für die Erkennung leerer Läufe, SYNC-20261114-334) */
+    val trashedCount: Int get() = 0
     /** Neu entdeckte Konflikte, die eine Entscheidung brauchen */
     val newConflicts: Int get() = 0
     /** Downloads wegen zu wenig Speicher übersprungen */

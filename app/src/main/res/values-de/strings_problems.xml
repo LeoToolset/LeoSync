@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Meldungen je Ursache statt je Profil (SYNC-20261115-409): Titel, Stufen, Sammelkachel -->
+    <string name="prob_title_guard">Synchronisierung angehalten – Entscheidung</string>
+    <string name="prob_title_plaintext">Unverschlüsselte Antwort abgewiesen</string>
+    <string name="prob_title_unsigned">Unsignierte Antwort abgewiesen</string>
+    <string name="prob_title_pc_unrecognised">PC nicht erkannt</string>
+    <string name="prob_title_enc_refused">Verschlüsselung nicht verfügbar</string>
+    <string name="prob_title_sign_refused">Signierung nicht mehr verfügbar</string>
+    <string name="prob_title_login">Anmeldung fehlgeschlagen</string>
+    <string name="prob_title_access_denied">Zugriff verweigert</string>
+    <string name="prob_title_credentials_unreadable">Gespeicherte Passwörter nicht lesbar</string>
+    <string name="prob_title_share_missing">Freigabe nicht gefunden</string>
+    <string name="prob_title_access_unencrypted">Freigabe verlangt Verschlüsselung</string>
+    <string name="prob_title_pc_full">PC-Speicher voll</string>
+    <string name="prob_title_phone_full">Handy-Speicher voll</string>
+    <string name="prob_title_guest">Nur als Gast angemeldet</string>
+    <string name="prob_title_negotiation">Verbindungsaufbau fehlgeschlagen</string>
+    <string name="prob_title_pc_folder_missing">Ordner auf dem PC fehlt</string>
+    <string name="prob_title_phone_folder_lost">Zugriff auf den Handy-Ordner verloren</string>
+    <string name="prob_title_restore_failed">Wiederherstellung fehlgeschlagen</string>
+    <string name="prob_title_unknown">Synchronisierung fehlgeschlagen</string>
+    <string name="prob_title_conflicts">Konflikte warten</string>
+    <string name="prob_title_month_folders">Monatsordner entscheiden</string>
+    <string name="prob_title_delete_confirm">Löschungen bestätigen</string>
+    <string name="prob_title_pc_unreachable">PC nicht erreichbar</string>
+    <string name="prob_title_partial">Einzelne Dateien fehlgeschlagen</string>
+    <string name="prob_level_1">Daten gefährdet – Entscheidung</string>
+    <string name="prob_level_2">Sicherheit</string>
+    <string name="prob_level_3">Braucht dein Eingreifen</string>
+    <string name="prob_level_4">Entscheidung zu Dateien</string>
+    <string name="prob_level_5">Vorübergehend</string>
+    <string name="prob_level_tip">Tipp</string>
+    <string name="msg_title_errors">Fehler</string>
+    <string name="msg_title_messages">Meldungen</string>
+    <string name="msg_counter">%1$d von %2$d</string>
+    <string name="msg_prev">Vorherige Meldung</string>
+    <string name="msg_next">Nächste Meldung</string>
+    <string name="msg_region">Meldungen, %1$d von %2$d</string>
+    <string name="msg_new_important">Eine wichtigere Meldung ist eingetroffen</string>
+    <string name="msg_show">Anzeigen</string>
+    <string name="msg_retry">Erneut versuchen</string>
+    <string name="msg_retrying">Wird erneut versucht …</string>
+    <string name="msg_enter_password">Passwort neu eingeben</string>
+    <string name="msg_open_profile">Profil öffnen</string>
+    <string name="msg_open_profile_named">Profil „%1$s“ öffnen</string>
+    <string name="msg_more_profiles">+ %1$d weitere</string>
+    <string name="msg_affects">Betrifft: %1$s</string>
+    <string name="msg_decide">Entscheiden</string>
+    <string name="msg_lower_named">Schutz verringern: %1$s</string>
+    <string name="msg_pw_title">Passwort neu eingeben</string>
+    <string name="msg_pw_text">Ein Passwort für alle Profile mit diesem Konto. LeoSync probiert zuerst ein Profil, damit das Konto nicht durch wiederholte Fehlversuche gesperrt wird.</string>
+    <string name="msg_pw_ok">Speichern und testen</string>
+    <string name="msg_pw_failed">Anmeldung fehlgeschlagen. Das Passwort wurde für die anderen Profile nicht gespeichert.</string>
+    <string name="msg_pw_done">Passwort gespeichert. Wird erneut versucht …</string>
+    <string name="msg_unreachable_text">Der PC war seit einem Tag oder länger nicht erreichbar.</string>
+    <plurals name="msg_status_count">
+        <item quantity="one">%1$d Meldung</item>
+        <item quantity="other">%1$d Meldungen</item>
+    </plurals>
+    <string name="home_headline_waiting">Wartet auf dich</string>
+    <string name="msg_label_guard">Entscheidung nötig · Synchronisierung angehalten</string>
+    <plurals name="msg_setup_count">
+        <item quantity="one">%1$d Einrichtungsproblem</item>
+        <item quantity="other">%1$d Einrichtungsprobleme</item>
+    </plurals>
+    <plurals name="msg_tip_count">
+        <item quantity="one">%1$d Tipp</item>
+        <item quantity="other">%1$d Tipps</item>
+    </plurals>
+    <plurals name="chk_waiting_group">
+        <item quantity="one">%1$d Profil wartet auf die erste Synchronisierung.</item>
+        <item quantity="other">%1$d Profile warten auf die erste Synchronisierung.</item>
+    </plurals>
+    <string name="home_headline_errors">Fehler</string>
+    <string name="home_headline_messages">Meldungen</string>
+</resources>

@@ -23,6 +23,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 import com.sync2pc.app.BuildConfig
 import com.sync2pc.app.R
@@ -49,14 +51,13 @@ import kotlin.math.roundToInt
 
 /**
  * Rubriken der Einstellungen (0.4.0). Das Zahnrad auf der Startseite öffnet ein Menü mit diesen Punkten;
- * jede Rubrik ist eine eigene Seite. "Updates" führt direkt zur Update-Seite (prüft sofort).
+ * jede Rubrik ist eine eigene Seite.
  */
 enum class SettingsSection(@StringRes val title: Int) {
     NOTIFICATIONS(R.string.settings_notifications),
     TRANSFER(R.string.settings_transfer),
     PERMISSIONS(R.string.settings_permissions),
     APP(R.string.settings_app),
-    UPDATES(R.string.settings_updates),
     DIAGNOSE(R.string.settings_diagnose),
 }
 
@@ -73,7 +74,6 @@ fun SettingsScreen(section: SettingsSection, onBack: () -> Unit) {
                 SettingsSection.TRANSFER -> transferPage()
                 SettingsSection.PERMISSIONS -> permissionsPage()
                 SettingsSection.APP -> appPage()
-                SettingsSection.UPDATES -> {} // eigene Seite (UpdateScreen)
                 SettingsSection.DIAGNOSE -> diagnosePage()
             }
         }
@@ -86,15 +86,11 @@ private fun LazyListScope.notificationsPage() {
         val ctx = LocalContext.current
         val s = remember { GlobalSettings(ctx) }
         var summary by remember { mutableStateOf(s.notifySummary) }
-        var update by remember { mutableStateOf(s.notifyUpdate) }
         var hints by remember { mutableStateOf(s.notifyHints) }
         // Ohne eigene Überschrift: die Seite heisst schon "Benachrichtigungen" (0.9.0)
         SectionCard {
             SwitchRow(str(R.string.settings_notify_summary), summary, subtitle = str(R.string.settings_notify_summary_sub)) {
                 summary = it; s.notifySummary = it
-            }
-            SwitchRow(str(R.string.settings_notify_update), update, subtitle = str(R.string.settings_notify_update_sub)) {
-                update = it; s.notifyUpdate = it
             }
             SwitchRow(str(R.string.settings_notify_hints), hints, subtitle = str(R.string.settings_notify_hints_sub)) {
                 hints = it; s.notifyHints = it
@@ -135,6 +131,7 @@ private fun LazyListScope.transferPage() {
         var charging by remember { mutableStateOf(s.onlyWhileCharging) }
         var offWifi by remember { mutableStateOf(s.syncOffWifi) }
         var minAge by remember { mutableStateOf(s.minFileAgeMinutes.toString()) }
+        var folderCheck by remember { mutableStateOf(s.folderCheckMinutes.toString()) }
         fun apply() = SyncScheduler.setupAll(ctx)
         SectionCard(str(R.string.settings_auto)) {
             SwitchRow(str(R.string.settings_auto_wifi), autoWifi, subtitle = str(R.string.settings_auto_wifi_sub)) {
@@ -151,10 +148,19 @@ private fun LazyListScope.transferPage() {
                 // Geplante Aufträge und Wartezeit "PC nicht erreichbar" gehören zur alten Netzwerkregel
                 SyncScheduler.onOffWifiChanged(ctx)
             }
+            // SYNC-20261113-314: bei Schrift 2,0 (fontScale >= 1,75) zusätzlicher Abstand über dem Feld; bei 1,0 und 1,5 unverändert
+            if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.75f) androidx.compose.foundation.layout.Spacer(
+                androidx.compose.ui.Modifier.height(12.dp))
             RangeNumberField(
                 minAge, { minAge = it }, str(R.string.settings_min_age), 0..24 * 60, R.string.settings_err_minutes, maxDigits = 4,
             ) { s.minFileAgeMinutes = it; apply() }
-            HintMore(str(R.string.settings_min_age_hint))
+            HintMore(str(R.string.settings_min_age_hint), extraBottom = 8.dp)
+            // SYNC-20261113-306: Prüfintervall der Ordner-Profile, global statt je Profil
+            RangeNumberField(
+                folderCheck, { folderCheck = it }, str(R.string.settings_folder_check), com.sync2pc.app.data.NumberInput.POLL_MINUTES,
+                R.string.settings_err_folder_check, maxDigits = 4,
+            ) { s.folderCheckMinutes = it; apply() }
+            HintMore(str(R.string.settings_folder_check_hint), extraBottom = 8.dp)
         }
     }
     item {
@@ -183,29 +189,17 @@ private fun LazyListScope.permissionsPage() {
         val perms = remember(tick) { PermStatus.read(ctx) }
         SectionCard(str(R.string.settings_perm_title)) {
             HintMore(str(R.string.settings_perm_hint))
-            PermissionRows(perms, showDone = true)
+            // Nur, was die vorhandenen Profile brauchen (Fotos-Zeile entfällt ohne Fotos-Profil, SYNC-20261115-392)
+            val profiles by produceState(emptyList<com.sync2pc.app.data.Profile>(), tick) {
+                value = withContext(Dispatchers.IO) { try { com.sync2pc.app.data.AppDatabase.get(ctx).dao().profiles() } catch (e: Exception) { emptyList() } }
+            }
+            PermissionRows(perms, showDone = true, needs = PermNeeds.of(profiles))
             OutlinedButton(onClick = {
                 ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
             }) { Text(str(R.string.settings_perm_app_info)) }
         }
     }
-    item {
-        val ctx = LocalContext.current
-        SectionCard(str(R.string.settings_battery)) {
-            HintMore(str(R.string.settings_background_hint))
-            val vendor = remember { VendorHints.forDevice() }
-            if (vendor != null) {
-                Text(str(R.string.settings_vendor_extra, vendor.vendor), style = MaterialTheme.typography.bodyMedium)
-                vendor.steps.forEach { Hint("• $it") }
-                HintMore(str(R.string.settings_vendor_note))
-            }
-            OutlinedButton(onClick = {
-                try {
-                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(VendorHints.webUrl(vendor))))
-                } catch (ignored: Exception) {}
-            }) { Text(str(R.string.settings_vendor_web)) }
-        }
-    }
+    // Die Akku-Anleitung (inkl. Hersteller-Hinweisen und Browser-Link) steht in der Akku-Zeile oben, nicht mehr als eigene Karte
 }
 
 // ---- 4. Sprache & Sicherung (bis 0.8.x "App-Einstellungen") ---------------------------------
@@ -342,4 +336,5 @@ private fun LazyListScope.diagnosePage() {
         }
     }
     item { HintMore(str(R.string.settings_about, BuildConfig.VERSION_NAME)) }
+    item { Hint(str(R.string.settings_updates_play)) }
 }

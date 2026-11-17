@@ -91,25 +91,25 @@ import com.sync2pc.app.mirror.PurgeStore
 import com.sync2pc.app.mirror.RestoreFailures
 import com.sync2pc.app.mirror.RestoreManager
 import com.sync2pc.app.sync.Notifications
+import com.sync2pc.app.sync.ProblemKind
 import com.sync2pc.app.sync.SyncProgress
 import com.sync2pc.app.sync.SyncScheduler
 import com.sync2pc.app.sync.SyncWorker
 import com.sync2pc.app.sync.WifiHelper
-import com.sync2pc.app.update.UpdateChecker
 import kotlinx.coroutines.flow.combine
 
 // Karten und Dialoge der Startseite (0.9.4 aus HomeScreen.kt ausgelagert)
 
 /** Produktseite mit Hilfe (0.11.0, Inhaber) */
-internal const val HELP_URL = "https://apop85.github.io/leosync/"
+internal const val HELP_URL = "https://leotoolset.github.io/leosync/"
 
 /**
- * Hilfeabschnitt «Verschlüsselung einschalten» (SYNC-20261111-159). Die Website pflegt der Inhaber nach dem Ordner docs/hilfe;
+ * Hilfeabschnitt «Verschlüsselung einschalten» (SYNC-20261111-159, Anker SYNC-20261115-368). Die Website (leotoolset.github.io) pflegt der Inhaber nach dem Ordner docs/hilfe;
  * die Anker (Überschrift als Kleinbuchstaben-Kennung) sind dort zu bestätigen. Fehlt ein Anker, öffnet die Seite oben.
  */
 internal fun encryptionHelpUrl(): String =
-    if (Texts.isGerman) HELP_URL + "hilfe.html#verschluesselung-einschalten"
-    else HELP_URL + "en/help.html#turning-on-encryption"
+    if (Texts.isGerman) HELP_URL + "hilfe.html#verschluesselung"
+    else HELP_URL + "en/help.html#encryption"
 
 // Restzeit nur bei belastbarer Übertragungsrate (SYNC-20261109-063): mindestens so lange gemessen, so viel übertragen
 // und höchstens so lang (sonst «wird berechnet»). Verhindert Anzeigen wie «noch ca. 411967 Std.» zu Beginn eines Laufs.
@@ -204,7 +204,6 @@ internal const val PAUSE_FOREVER = -1
 
 @Composable
 internal fun StatusCard(
-    ssid: String?,
     isRunning: Boolean,
     isQueued: Boolean,
     waitText: String,
@@ -231,8 +230,6 @@ internal fun StatusCard(
     pendingFiles: Int,
     /** Dateien, die lokal auf die Übertragung warten (SYNC-20261111-199); nur bei [HomeHeadline.NO_CONNECTION] angezeigt */
     waitingFiles: Int = 0,
-    /** Standort-Berechtigung fehlt, obwohl der WLAN-Name gebraucht wird (SYNC-20261111-176 R4) */
-    locationMissing: Boolean,
     onOpenPermissions: () -> Unit,
     onSync: () -> Unit,
     onCancel: () -> Unit,
@@ -242,25 +239,27 @@ internal fun StatusCard(
     etaText: String? = null,
     /** Platz für eine zusätzliche Hinweiszeile in der Laufanzeige (z. B. «Danach: …»); null = nichts */
     runHint: String? = null,
+    /** Kompakt (SYNC-20261115-416 D): kleinerer Hund, nur Überschrift und eine Zeile, solange die Sammelkachel sichtbar ist */
+    compact: Boolean = false,
+    /** Vorgemerkte Löschungen und Wiederherstellungen (SYNC-20261115-416 F), eine Zeile je Eintrag */
+    pendingLines: List<String> = emptyList(),
 ) {
     val userPaused = userPausedUntil > 0
     SectionCard(title = str(R.string.home_status)) {
         // Zustandsbild folgt der Überschrift (HomeStatus.dogFor); Vorrang steht in HomeStatus.headline
-        DogStatus(HomeStatus.dogFor(headline, userPaused), Modifier.align(Alignment.CenterHorizontally))
+        DogStatus(HomeStatus.dogFor(headline, userPaused), Modifier.align(Alignment.CenterHorizontally), compact = compact)
         // Aufbau (A5, SYNC-20261110-113): 1. Überschrift mit Symbol (immer 1–2 Zeilen, linksbündig wie alle Zeilen),
         // 2. WLAN (einzeilig), 3. Zustandsbereich mit Mindesthöhe für die üblichen Fälle
         // (2 Zeilen Haupttext + Balken bzw. Hinweis + 2 kleine Zeilen, davon eine für runHint). Nur lange Meldungen machen ihn grösser.
         val typo = MaterialTheme.typography
         val density = LocalDensity.current
         val statusMin = with(density) {
-            (typo.bodyLarge.lineHeight * 2).toDp() + (typo.bodySmall.lineHeight * 2).toDp() + 24.dp
+            if (compact) 0.dp else (typo.bodyLarge.lineHeight * 2).toDp() + (typo.bodySmall.lineHeight * 2).toDp() + 24.dp
         }
         StatusHeadline(
             headline, attentionCount, lastRunErrors,
-            onClick = if (headline == HomeHeadline.ERRORS) onOpenLog else null,
+            onClick = null,
         )
-        // Zeile bleibt immer stehen (gleiche Höhe, nichts verschiebt sich); ohne lesbaren WLAN-Namen bleibt sie leer
-        Text(if (ssid != null) str(R.string.home_wifi, ssid) else " ", maxLines = 1, overflow = TextOverflow.Ellipsis)
         Column(Modifier.fillMaxWidth().heightIn(min = statusMin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             isRunning -> {
@@ -292,10 +291,11 @@ internal fun StatusCard(
             // Ohne Profil: «Lege zuerst ein Profil an» als Hauptaussage, keine Zeitangaben gelöschter Profile (A9)
             !hasProfiles -> Text(str(R.string.home_sync_needs_profile))
             // Offene Entscheidung: nie «alles aktuell» (A1); Zeitpunkt des letzten Laufs bleibt als kleine Zeile
-            headline == HomeHeadline.ATTENTION -> {
+            headline == HomeHeadline.ATTENTION || headline == HomeHeadline.ERRORS || headline == HomeHeadline.MESSAGES -> {
                 Text(attentionText)
                 // Pause mit Ende bleibt sichtbar (SYNC-20261112-248): die Überschrift «Pausiert» nennt kein Ende
-                if (userPaused && userPausedUntil != Long.MAX_VALUE) Hint(str(R.string.home_paused_until, pauseEndText(userPausedUntil)))
+                // SYNC-20261115-398: auch die Pause «für immer» (nur manuell) benennen
+                if (userPaused) Hint(if (userPausedUntil == Long.MAX_VALUE) str(R.string.home_manual_only) else str(R.string.home_paused_until, pauseEndText(userPausedUntil)))
                 lastSuccess?.let { Hint(str(R.string.home_last_sync, formatTime(it.finishedAt ?: it.startedAt), it.profileName.trim())) }
             }
             headline == HomeHeadline.NO_ACTIVE_PROFILE -> Text(str(R.string.home_no_active_detail))
@@ -351,13 +351,8 @@ internal fun StatusCard(
             Text(str(if (skipManual) R.string.home_skipped_manual else R.string.home_skipped, skipInfo), color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall)
         }
-        // R4: Fehlende Standort-Berechtigung nie still lassen: Zeile mit Symbol und Weg zur Lösung
-        if (locationMissing && !isRunning) {
-            Text(str(R.string.home_location_missing), color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onOpenPermissions) { Text(str(R.string.settings_perm_title), maxLines = 1) }
         }
-        }
+        pendingLines.forEach { Hint(it) }
         // Zwei gleich breite Knöpfe, Text einzeilig (kein Umbruch wie "Vorsc-hau")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val w = Modifier.weight(1f)
@@ -382,19 +377,25 @@ private fun StatusHeadline(headline: HomeHeadline, attentionCount: Int, errors: 
         HomeHeadline.RUNNING -> str(R.string.home_running)
         HomeHeadline.NOT_CONFIGURED -> str(R.string.home_status_not_configured)
         HomeHeadline.NO_ACTIVE_PROFILE -> str(R.string.home_status_no_active)
-        HomeHeadline.ATTENTION -> plural(R.plurals.home_status_attention, attentionCount.coerceAtLeast(1))
+        HomeHeadline.ATTENTION -> str(R.string.home_headline_waiting)
         HomeHeadline.PAUSED -> str(R.string.home_status_paused) // R6: Überschrift «⏸ Pausiert», Detail im Zustandsbereich
         HomeHeadline.PENDING -> str(R.string.home_status_pending)
         HomeHeadline.NO_CONNECTION -> str(R.string.home_status_no_connection)
-        HomeHeadline.ERRORS ->
-            if (errors > 0) plural(R.plurals.home_status_errors, errors) else str(R.string.home_status_failed)
+        HomeHeadline.ERRORS -> str(R.string.home_headline_errors)
+        HomeHeadline.MESSAGES -> str(R.string.home_headline_messages)
         HomeHeadline.UP_TO_DATE -> str(R.string.home_all_saved)
         HomeHeadline.IDLE -> str(R.string.home_status_idle)
     }
     if (text.isEmpty()) return
     val warn = HomeStatus.showsWarning(headline)
-    val color = if (headline == HomeHeadline.ERRORS || headline == HomeHeadline.ATTENTION)
-        MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    // SYNC-20261115-418 H: Fehler rot, Warnung (Stufe 4 und 5) im Warnton passend zur gelben Kachel; das Warnsymbol bleibt (Farbe nie allein)
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val color = when (headline) {
+        HomeHeadline.ERRORS -> MaterialTheme.colorScheme.error
+        HomeHeadline.ATTENTION, HomeHeadline.MESSAGES ->
+            if (dark) androidx.compose.ui.graphics.Color(0xFFFFC857) else androidx.compose.ui.graphics.Color(0xFF8A5A00)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     Row(
         Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -405,7 +406,7 @@ private fun StatusHeadline(headline: HomeHeadline, attentionCount: Int, errors: 
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_warn), null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        else if (headline == HomeHeadline.NOT_CONFIGURED) {
+        else if (headline == HomeHeadline.NOT_CONFIGURED || headline == HomeHeadline.MESSAGES) {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_info), null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp))
         }
         Text(text, style = MaterialTheme.typography.titleSmall, color = color, minLines = 1, maxLines = 2,
@@ -455,6 +456,16 @@ internal fun GuardCard(g: Guard, profileName: String, onChooseFolder: () -> Unit
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GuardBody(g, profileName, onChooseFolder, onChoice)
+        }
+    }
+}
+
+/** Inhalt der Schutzbremse ohne eigene Kartenfläche (in der Sammelkachel, SYNC-20261115-416 C): Titel, Text, Aktionen */
+@Composable
+internal fun GuardBody(g: Guard, profileName: String, onChooseFolder: () -> Unit, onChoice: (MirrorGuard.Choice) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        run {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_warn), null, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(8.dp))
                 Text(MirrorGuard.title(g), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -478,6 +489,27 @@ internal fun GuardCard(g: Guard, profileName: String, onChooseFolder: () -> Unit
                         Text(str(R.string.guard_delete_anyway))
                     }
                     Hint(str(R.string.guard_keep_hint))
+                }
+                GuardKind.VOLUME_CHANGED -> {
+                    // SYNC-20261115-352: Hauptaktion «Nicht synchronisieren» (sicher, die Karte bleibt stehen, das Profil ruht);
+                    // Zweitaktion «Ist das richtige Laufwerk – weiter» erst nach Bestätigung
+                    var stay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    var confirmVolume by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    Button(onClick = { stay = true }, modifier = full) { Text(str(R.string.prot_vol_no)) }
+                    OutlinedButton(onClick = { confirmVolume = true }, modifier = full) { Text(str(R.string.guard_volume_continue)) }
+                    if (stay) Hint(str(R.string.prot_vol_stay))
+                    Hint(str(R.string.guard_volume_hint))
+                    if (confirmVolume) androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { confirmVolume = false },
+                        title = { DialogTitleText(str(R.string.prot_vol_confirm_title)) },
+                        text = { Text(str(R.string.prot_vol_confirm_text)) },
+                        confirmButton = {
+                            // SYNC-20261115-414: «Abbrechen» gefüllt und zuerst, die riskante Aktion als Textknopf darunter
+                            SafeFirstButtons(str(R.string.prot_cancel), str(R.string.prot_vol_confirm_ok), { confirmVolume = false }) {
+                                confirmVolume = false; onChoice(MirrorGuard.Choice.ACCEPT_VOLUME)
+                            }
+                        },
+                    )
                 }
                 GuardKind.CHECK_FOLDER -> {
                     Button(onClick = onChooseFolder, modifier = full) { Text(str(R.string.guard_choose_other)) }
@@ -513,7 +545,7 @@ internal fun ActionCard(title: String, text: String, button: String, onClick: ()
 }
 
 @Composable
-internal fun ProfileCard(p: Profile, ssid: String?, awaitingFirstStart: Boolean, onClick: () -> Unit) {
+internal fun ProfileCard(p: Profile, awaitingFirstStart: Boolean, problem: ProblemKind? = null, onClick: () -> Unit) {
     // 0.11.1 (DEC-072): bei Fotos-Profilen Anzahl gesicherter und noch offener Dateien (rein lokal, ohne Netzwerk).
     // Ordner-Profile (0.11.2): "offen" wäre nur mit PC-Listing bekannt -> stattdessen "synchronisiert" (Stand letzter
     // Abgleich, `mirror_state`) und die lokal bekannten offenen Konflikte.
@@ -547,8 +579,10 @@ internal fun ProfileCard(p: Profile, ssid: String?, awaitingFirstStart: Boolean,
     // SYNC-20261111-225: tatsächlicher Zustand der letzten Anmeldung, nicht die Einstellung (siehe EncryptionStatus)
     val encTick by com.sync2pc.app.smb.EncryptionStatus.changes.collectAsState()
     val encrypted = remember(p, encTick, resumeTick) { com.sync2pc.app.smb.EncryptionStatus.lastKnown(p) == true }
+    // SYNC-20261115-352: Verschlüsselung abgelehnt (Stufe «Erforderlich», PC bietet sie nicht an)
+    val encRejected = remember(p, encTick, resumeTick) { com.sync2pc.app.smb.EncryptionAuto.isRejected(ctx, p) }
     // PC-Kennung erkannt (Bedingung der Zeile «PC erkannt»): Symbol in der Kopfzeile und Textzeile unten
-    val pcKnownIcon = p.pcMode().checksGuid && com.sync2pc.app.sync.PcIdentity.storedFor(
+    val pcKnownIcon = com.sync2pc.app.sync.PcIdentity.storedFor(
         p.pcGuid, p.pcGuidHost, com.sync2pc.app.smb.SmbTarget.hostOf(p.smbPath).orEmpty()) != null
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -560,11 +594,14 @@ internal fun ProfileCard(p: Profile, ssid: String?, awaitingFirstStart: Boolean,
                 // SYNC-20261111-225 / SYNC-20261112-285: Statussymbole WLAN, PC, Verschlüsselt (je 22 dp fest, optisch 12 dp vom Rand)
                 // als letzte Elemente der Kopfzeile, nur die zutreffenden, ohne Lücke, unabhängig von «Deaktiviert». Der Name endet
                 // davor (weight(1f)), so ragt er nie über die Symbole und sie bleiben oben rechts.
-                ProfileStatusIcons.visible(ssid != null && p.ssids().contains(ssid), pcKnownIcon, encrypted).forEachIndexed { i, icon ->
+                ProfileStatusIcons.visible(pcKnownIcon, encrypted || encRejected).forEachIndexed { i, icon ->
                     Spacer(Modifier.width(if (i == 0) 8.dp else 6.dp))
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(icon.drawable),
-                        contentDescription = str(icon.description),
+                        // SYNC-20261115-352: abgelehnte Verschlüsselung = Symbol rot, dazu Textzeile unten (Farbe nie allein)
+                        colorFilter = if (icon == ProfileIcon.ENCRYPTED && encRejected)
+                            androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.error) else null,
+                        contentDescription = if (icon == ProfileIcon.ENCRYPTED && encRejected) str(R.string.prot_enc_card_line) else str(icon.description),
                         modifier = Modifier.size(22.dp).offset(x = 4.dp, y = (-4).dp).align(Alignment.Top),
                     )
                 }
@@ -589,10 +626,18 @@ internal fun ProfileCard(p: Profile, ssid: String?, awaitingFirstStart: Boolean,
                 !com.sync2pc.app.mirror.LocalTree.hasPermission(ctx, android.net.Uri.parse(p.localTreeUri)))
                 Text(str(R.string.home_profile_access_lost), color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall)
-            val pcMode = p.pcMode()
-            if (com.sync2pc.app.sync.NetworkRules.needsWifiName(pcMode))
-                Hint(str(R.string.home_wifi, p.ssids().joinToString(", ").ifBlank { str(R.string.home_profile_no_wifi) }))
-            if (pcMode.checksGuid) Hint(str(if (pcKnownIcon) R.string.home_profile_pc_known else R.string.home_profile_pc_unknown))
+            if (encRejected) Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_warn), null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(str(R.string.prot_enc_card_line), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            // SYNC-20261115-416 F: Stufen 1 bis 3 als rote Textzeile (nie nur Farbe); Verschlüsselung und Handy-Ordner haben schon eigene Zeilen
+            if (problem != null && problem != ProblemKind.ENC_REFUSED && problem != ProblemKind.PHONE_FOLDER_LOST) Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_warn), null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(str(problemTitleRes(problem)), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Hint(str(if (pcKnownIcon) R.string.home_profile_pc_known else R.string.home_profile_pc_unknown))
             val sc = synced; val oc = open
             if (isPhotos && sc != null && oc != null) Hint(str(R.string.home_profile_counts, sc, oc))
             if (!isPhotos && sc != null) Hint(
@@ -621,7 +666,37 @@ internal fun PermissionCard(perms: PermStatus, needs: PermNeeds) {
                 androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_warn), null, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(8.dp))
                 Text(str(R.string.perm_incomplete), style = MaterialTheme.typography.titleMedium)
             }
-            PermissionRows(perms, showDone = false, needs = needs)
+            PermissionRows(perms, showDone = false, needs = needs, showBattery = false)
+        }
+    }
+}
+
+/** Neutrale Tipp-Karte statt roter Warnung (SYNC-20261115-382): Akku-Ausnahme fehlt, «Nicht jetzt» stellt dauerhaft zurück */
+@Composable
+internal fun BatteryTipCard() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var how by remember { mutableStateOf(false) }
+    var hidden by remember { mutableStateOf(false) }
+    if (hidden) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_info), null, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(8.dp))
+                Text(str(R.string.battery_tip_title), style = MaterialTheme.typography.titleMedium)
+            }
+            Text(str(R.string.battery_tip_text))
+            androidx.compose.material3.Button(
+                onClick = { BatteryTip.openSettings(ctx) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(str(R.string.setup_battery_btn)) }
+            androidx.compose.material3.OutlinedButton(onClick = { how = !how }, modifier = Modifier.fillMaxWidth()) { Text(str(R.string.setup_battery_how)) }
+            if (how) BatteryHowTo()
+            androidx.compose.material3.OutlinedButton(
+                onClick = { BatteryTip.skip(ctx); hidden = true }, modifier = Modifier.fillMaxWidth(),
+            ) { Text(str(R.string.battery_tip_later)) }
         }
     }
 }

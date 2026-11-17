@@ -40,12 +40,8 @@ class PcIdentityTest {
     }
 
     @Test fun parseFallsBackToWifi() {
-        assertEquals(PcCheckMode.WIFI, PcCheckMode.parse(null))
-        assertEquals(PcCheckMode.WIFI, PcCheckMode.parse(""))
-        assertEquals(PcCheckMode.WIFI, PcCheckMode.parse("irgendwas"))
-        assertEquals(PcCheckMode.GUID, PcCheckMode.parse("GUID"))
-        assertEquals(PcCheckMode.BOTH, PcCheckMode.parse("both"))
-        assertEquals(PcCheckMode.WIFI, PcCheckMode.parse("WIFI"))
+        // seit 0.19.0 (SYNC-20261115-351) ergibt jeder Wert GUID (WIFI/BOTH gibt es nur noch als Enum-Wert für alte Sicherungen)
+        for (v in listOf(null, "", "irgendwas", "GUID", "both", "WIFI")) assertEquals(PcCheckMode.GUID, PcCheckMode.parse(v))
     }
 
     @Test fun storedOnlyValidForSameHostCaseInsensitive() {

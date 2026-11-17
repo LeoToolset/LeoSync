@@ -9,7 +9,7 @@ fun isNetworkError(e: Throwable): Boolean {
     // Zuerst prüfen, damit eine umhüllende Netzwerk-Exception sie nicht überdeckt.
     // Ebenso "Verschlüsselung erforderlich, aber nicht verfügbar" (SYNC-20261111-144): Wiederholen ändert nichts
     if (generateSequence(e) { x -> x.cause?.takeIf { it !== x } }.take(9)
-            .any { it is PcIdentityException || it is com.sync2pc.app.smb.SmbEncryptionUnavailableException }) return false
+            .any { it is PcIdentityException || it is com.sync2pc.app.smb.SmbEncryptionUnavailableException || isProtectionRejection(it) }) return false
     var t: Throwable? = e
     var depth = 0
     while (t != null && depth < 8) {
@@ -53,7 +53,12 @@ private fun pcIdentityOf(e: Throwable): PcIdentityException? =
     generateSequence(e) { t -> t.cause?.takeIf { it !== t } }.take(9).firstOrNull { it is PcIdentityException } as? PcIdentityException
 
 /** Ist die Ursache «Verschlüsselung erforderlich, aber nicht verfügbar»? (SYNC-20261111-172) */
-fun isEncryptionUnavailable(e: Throwable): Boolean = encryptionOf(e) != null
+fun isEncryptionUnavailable(e: Throwable): Boolean =
+    encryptionOf(e) != null || generateSequence(e) { t -> t.cause?.takeIf { it !== t } }.take(9).any { isProtectionRejection(it) }
+
+/** Klartext-Antwort in verschlüsselter Sitzung oder fehlende Signierung abgewiesen (SYNC-20261115-365): nie ein Netzwerkfehler */
+private fun isProtectionRejection(t: Throwable): Boolean =
+    t is com.sync2pc.app.smb.SmbPlaintextRejectedException || t is com.sync2pc.app.smb.SmbSigningRejectedException
 
 /** "Verschlüsselung erforderlich, aber nicht verfügbar" (Text mit Host als Argument, SYNC-20261111-144) */
 private fun encryptionOf(e: Throwable): com.sync2pc.app.smb.SmbEncryptionUnavailableException? =
@@ -70,6 +75,11 @@ internal fun friendlyErrorId(e: Throwable): Int? {
             com.sync2pc.app.R.string.err_friendly_login
         has("STATUS_BAD_NETWORK_NAME") -> com.sync2pc.app.R.string.err_friendly_share_missing
         has("STATUS_OBJECT_NAME_NOT_FOUND", "STATUS_OBJECT_PATH_NOT_FOUND") -> com.sync2pc.app.R.string.err_friendly_folder_missing
+        chain.any { it is com.sync2pc.app.smb.SmbPlaintextRejectedException } -> com.sync2pc.app.R.string.err_friendly_plaintext
+        chain.any { it is com.sync2pc.app.smb.SmbSigningRejectedException } -> com.sync2pc.app.R.string.err_friendly_signing
+        chain.any { it is com.sync2pc.app.data.CredentialUnreadableException } -> com.sync2pc.app.R.string.err_friendly_credential_unreadable
+        chain.any { it is com.sync2pc.app.data.CredentialUnavailableException } -> com.sync2pc.app.R.string.err_friendly_credential_unavailable
+        chain.any { it is com.sync2pc.app.smb.SmbGuestSessionException } -> com.sync2pc.app.R.string.err_friendly_guest_session
         chain.any { it is com.sync2pc.app.smb.SmbShareAccessDeniedException } -> com.sync2pc.app.R.string.err_friendly_access_unencrypted
         has("STATUS_ACCESS_DENIED") -> com.sync2pc.app.R.string.err_friendly_access
         has("STATUS_DISK_FULL") -> com.sync2pc.app.R.string.err_friendly_pc_full

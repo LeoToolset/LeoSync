@@ -2,6 +2,7 @@ package com.sync2pc.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.sync2pc.app.sync.FolderCheck
 
 /** Profilübergreifende Einstellungen. */
 class GlobalSettings(context: Context) {
@@ -63,53 +64,10 @@ class GlobalSettings(context: Context) {
         get() = prefs.getBoolean("notifySummary", true)
         set(v) = prefs.edit().putBoolean("notifySummary", v).apply()
 
-    /** "Update verfügbar" / "Update installiert" */
-    var notifyUpdate: Boolean
-        get() = prefs.getBoolean("notifyUpdate", true)
-        set(v) = prefs.edit().putBoolean("notifyUpdate", v).apply()
-
     /** Hinweise: Ordnerauswahl, Konflikte, Dateien entfernen, Fehler (alles auch auf der Startseite sichtbar) */
     var notifyHints: Boolean
         get() = prefs.getBoolean("notifyHints", true)
         set(v) = prefs.edit().putBoolean("notifyHints", v).apply()
-
-    // ---- Selbst-Update (GitHub Releases) -------------------------------------
-    /**
-     * "besitzer/repo" auf GitHub – seit 0.4.0 fest aus version.properties (UPDATE_REPO), nicht mehr änderbar.
-     * Ein früher in den Einstellungen gespeicherter Wert wird ignoriert.
-     */
-    val updateRepo: String
-        get() = com.sync2pc.app.BuildConfig.UPDATE_REPO
-
-    var autoUpdateCheck: Boolean
-        get() = prefs.getBoolean("autoUpdateCheck", true)
-        set(v) = prefs.edit().putBoolean("autoUpdateCheck", v).apply()
-
-    var lastUpdateCheck: Long
-        get() = prefs.getLong("lastUpdateCheck", 0)
-        set(v) = prefs.edit().putLong("lastUpdateCheck", v).apply()
-
-    /** Zuletzt gefundene neuere Version (leer = keine) */
-    var updateVersion: String
-        get() = prefs.getString("updateVersion", "") ?: ""
-        set(v) = prefs.edit().putString("updateVersion", v).apply()
-    var updateApkUrl: String
-        get() = prefs.getString("updateApkUrl", "") ?: ""
-        set(v) = prefs.edit().putString("updateApkUrl", v).apply()
-    var updateNotes: String
-        get() = prefs.getString("updateNotes", "") ?: ""
-        set(v) = prefs.edit().putString("updateNotes", v).apply()
-    var updateSize: Long
-        get() = prefs.getLong("updateSize", 0)
-        set(v) = prefs.edit().putLong("updateSize", v).apply()
-    /** Für diese Version wurde bereits benachrichtigt */
-    var updateNotifiedVersion: String
-        get() = prefs.getString("updateNotifiedVersion", "") ?: ""
-        set(v) = prefs.edit().putString("updateNotifiedVersion", v).apply()
-    /** Version, die gerade installiert wird -> nach dem Update App neu öffnen */
-    var updateInstalling: String
-        get() = prefs.getString("updateInstalling", "") ?: ""
-        set(v) = prefs.edit().putString("updateInstalling", v).commit().let { }
 
     /** Share war nicht erreichbar: vor diesem Zeitpunkt (ms) keine automatische Prüfung; 0 = kein Warten */
     var shareRetryAt: Long
@@ -126,7 +84,9 @@ class GlobalSettings(context: Context) {
         get() = prefs.getBoolean("resumeOnWifi", false)
         set(v) = prefs.edit().putBoolean("resumeOnWifi", v)
             .putLong("resumeSince", if (v) (prefs.getLong("resumeSince", 0).takeIf { it > 0 } ?: System.currentTimeMillis()) else 0)
-            .apply()
+            // SYNC-20261116-425: sofort und sicher auf den Datenträger (commit): nach einem Stopp kann der Prozess gleich eingefroren
+            // oder beendet werden, ein asynchrones apply() ginge dann verloren
+            .commit().let { }
 
     /** Seit wann ein unterbrochener Sync auf das WLAN wartet (0 = nicht) */
     val resumeSince: Long get() = prefs.getLong("resumeSince", 0)
@@ -142,10 +102,29 @@ class GlobalSettings(context: Context) {
     /** Speichert den Nachlauf-Merker synchron; false = nicht gespeichert (SYNC-20261111-172) */
     fun writeDeferredStart(v: String): Boolean = prefs.edit().putString("deferredStart", v).commit()
 
-    /** Kürzestes Prüfintervall aller aktiven Ordner-Profile (Minuten), 0 = keine Ordner-Profile */
-    var remotePollMinutes: Int
-        get() = prefs.getInt("remotePollMinutes", 0)
-        set(v) = prefs.edit().putInt("remotePollMinutes", v).apply()
+    /**
+     * «Auf Änderungen prüfen» der Ordner-Profile, global (SYNC-20261113-306), Minuten im Bereich [NumberInput.POLL_MINUTES].
+     * Eigener Schlüssel. Ungesetzt ([folderCheckIsSet] false, erster Start nach dem Update): bis der Startwert aus den Profilen
+     * gesetzt ist, gilt der früher abgeleitete Wert (kürzestes Intervall der aktiven Ordner-Profile, nur gelesen), sonst 60.
+     */
+    var folderCheckMinutes: Int
+        get() = FolderCheck.clamp(prefs.getInt("folderCheckMinutes", prefs.getInt("remotePollMinutes", 0).takeIf { it > 0 } ?: FolderCheck.DEFAULT_MINUTES))
+        set(v) = prefs.edit().putInt("folderCheckMinutes", FolderCheck.clamp(v)).apply()
+
+    /** Wurde das globale Prüfintervall schon einmal gesetzt (oder aus einer Sicherung übernommen)? */
+    val folderCheckIsSet: Boolean get() = prefs.contains("folderCheckMinutes")
+
+    /** Vergisst den Wert samt dem früher abgeleiteten: der Startwert wird neu aus den Profilen bestimmt (Sicherung ohne Wert) */
+    fun clearFolderCheck() { prefs.edit().remove("folderCheckMinutes").remove("remotePollMinutes").apply() }
+
+    /**
+     * Gibt es mindestens ein aktives Ordner-Profil? (Von der Profilverwaltung nachgeführt.) Ungesetzt (erster Start nach dem
+     * Update): wie früher aus dem abgeleiteten Wert (grösser 0 = es gab aktive Ordner-Profile).
+     */
+    var folderProfilesActive: Boolean
+        get() = if (prefs.contains("folderProfilesActive")) prefs.getBoolean("folderProfilesActive", false)
+        else prefs.getInt("remotePollMinutes", 0) > 0
+        set(v) = prefs.edit().putBoolean("folderProfilesActive", v).apply()
 
     /** Warum der letzte automatische Start nicht synchronisiert hat (leer = alles ok) */
     val lastSkipInfo: String get() = prefs.getString("lastSkipInfo", "") ?: ""
@@ -173,6 +152,11 @@ class GlobalSettings(context: Context) {
     var lastSkipFollowUpAt: Long
         get() = prefs.getLong("lastSkipFollowUpAt", 0)
         set(v) = prefs.edit().putLong("lastSkipFollowUpAt", v).apply()
+
+    /** Bis wann kein Folgelauf allein wegen «Ordner verändert» geplant wird (nach einem leeren Folgelauf), 0 = keine Sperre (SYNC-20261114-334) */
+    var folderFollowUpIdleUntil: Long
+        get() = prefs.getLong("folderFollowUpIdleUntil", 0)
+        set(v) = prefs.edit().putLong("folderFollowUpIdleUntil", v).apply()
 
     // ---- «Verschlüsselung nicht verfügbar»: Fehlermeldung je Profil nur einmal, bis ein Lauf gelingt (SYNC-20261111-172) ----
     fun encNotified(profileId: Long): Boolean =
@@ -262,10 +246,9 @@ class GlobalSettings(context: Context) {
     fun exportable(): Map<String, Any> = linkedMapOf(
         "autoSyncOnWifi" to autoSyncOnWifi, "syncOnNewMedia" to syncOnNewMedia,
         "onlyWhileCharging" to onlyWhileCharging, "minFileAgeMinutes" to minFileAgeMinutes,
-        "syncOffWifi" to syncOffWifi,
+        "syncOffWifi" to syncOffWifi, "folderCheckMinutes" to folderCheckMinutes,
         "homeCountryIso" to homeCountryIso, "parallelUploads" to parallelUploads,
-        "autoUpdateCheck" to autoUpdateCheck,
-        "notifySummary" to notifySummary, "notifyUpdate" to notifyUpdate, "notifyHints" to notifyHints,
+        "notifySummary" to notifySummary, "notifyHints" to notifyHints,
         "staleWarnEnabled" to staleWarnEnabled, "staleWarnDays" to staleWarnDays,
         "freeSpaceMonths" to freeSpaceMonths, "freeSpaceKeepFavorites" to freeSpaceKeepFavorites,
     )
@@ -277,11 +260,10 @@ class GlobalSettings(context: Context) {
         fun s(k: String, set: (String) -> Unit) { (map[k] as? String)?.let(set) }
         b("autoSyncOnWifi") { autoSyncOnWifi = it }; b("syncOnNewMedia") { syncOnNewMedia = it }
         b("onlyWhileCharging") { onlyWhileCharging = it }; i("minFileAgeMinutes") { minFileAgeMinutes = it }
-        b("syncOffWifi") { syncOffWifi = it }
+        b("syncOffWifi") { syncOffWifi = it }; i("folderCheckMinutes") { folderCheckMinutes = it }
         s("homeCountryIso") { homeCountryIso = it }; i("parallelUploads") { parallelUploads = it }
-        // "updateRepo" wird seit 0.4.0 nicht mehr übernommen (fest eingebaut)
-        b("autoUpdateCheck") { autoUpdateCheck = it }
-        b("notifySummary") { notifySummary = it }; b("notifyUpdate") { notifyUpdate = it }; b("notifyHints") { notifyHints = it }
+        // Schlüssel des früheren Selbst-Updates (autoUpdateCheck, notifyUpdate, updateRepo) werden beim Import ignoriert (0.19.0)
+        b("notifySummary") { notifySummary = it }; b("notifyHints") { notifyHints = it }
         b("staleWarnEnabled") { staleWarnEnabled = it }; i("staleWarnDays") { staleWarnDays = it }
         i("freeSpaceMonths") { freeSpaceMonths = it }; b("freeSpaceKeepFavorites") { freeSpaceKeepFavorites = it }
     }

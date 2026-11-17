@@ -19,8 +19,12 @@ enum class PcCheckMode {
     val checksGuid: Boolean get() = this != WIFI
 
     companion object {
-        /** Unbekannte oder leere Werte (alte Sicherung, Fehler) ergeben WIFI = heutiges Verhalten */
-        fun parse(s: String?): PcCheckMode = values().firstOrNull { it.name == s?.trim()?.uppercase() } ?: WIFI
+        /**
+         * Seit 0.19.0 (SYNC-20261115-351) gibt es nur noch die Erkennung per PC-Kennung: jeder Wert (auch WIFI/BOTH aus einer alten
+         * Sicherung, leer oder unbekannt) ergibt GUID. Die Enum-Werte bleiben nur, damit alte Sicherungen lesbar sind.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        fun parse(s: String?): PcCheckMode = GUID
     }
 }
 
@@ -82,7 +86,7 @@ object PcIdentity {
      * - GUID/BOTH: ohne gültige [seenGuid] nie anmelden; ohne gespeicherte Kennung für [host]: nur bei [PcAccess.SETUP] und
      *   [learnNetOk] anmelden (und lernen), bei SETUP ohne [learnNetOk] [PcDecision.WRONG_NET], sonst UNKNOWN;
      *   gespeicherte Kennung muss gleich sein.
-     * [learnNetOk]: Netzbedingung fürs erste Kennenlernen, vom Aufrufer ermittelt ([NetworkRules.learnNetOk]).
+     * [learnNetOk]: Netzbedingung fürs erste Kennenlernen, vom Aufrufer ermittelt (seit 0.19.0 immer erfüllt, es gibt keine WLAN-Namen-Bedingung mehr).
      */
     fun decide(
         mode: PcCheckMode, pcGuid: String, pcGuidHost: String, host: String,

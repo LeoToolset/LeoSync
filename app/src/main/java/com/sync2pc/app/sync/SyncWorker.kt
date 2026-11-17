@@ -27,6 +27,9 @@ import com.sync2pc.app.smb.PcSeen
 import com.sync2pc.app.smb.SmbSession
 import com.sync2pc.app.smb.SmbTarget
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
@@ -34,6 +37,9 @@ import kotlinx.coroutines.withContext
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     companion object {
+        /** Meldungen, die eine bestandene Vorprüfung (PC erreichbar, erkannt, ausgehandelt) erledigt (SYNC-20261115-409) */
+        val PRECHECK_KINDS = setOf(ProblemKind.PC_UNREACHABLE, ProblemKind.PC_UNRECOGNISED, ProblemKind.NEGOTIATION)
+
         // Verhinderung paralleler Läufe (Auto, Manuell, Nachholen): SyncScheduler.gate (SyncGate), siehe doWork
 
         const val P_PROFILE = "profile"
@@ -65,15 +71,31 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // SYNC-20261111-172 (6): Sonderaufträge (Fortsetzen, Wiederholung, Folgelauf) wandeln sich nicht in einen
         // Nachlauf-Merker um (der hätte weder KEY_RESUME noch KEY_RETRY): bei belegter Sperre bleibt der Auftrag mit seinen
         // Eingabedaten bei WorkManager und versucht es nach dem Backoff erneut.
+        // SYNC-20261116-438: Diagnose: jeder Start und jede Abweisung durch die Sperre steht im Log (Nachweis, ob eine hängende Sperre
+        // eines früheren Laufs den Fortsetzen-Start verhindert)
+        android.util.Log.i("SyncWorker", "Start: resume=$isResumeRun, special=${SyncScheduler.isSpecialRun(inputData)}, sperre belegt=${gate.isRunning}")
         if (SyncScheduler.isSpecialRun(inputData)) {
-            if (!gate.tryAcquire()) return@withContext Result.retry()
-        } else if (!gate.tryAcquireOrDefer(manual = inputData.getBoolean(SyncScheduler.KEY_MANUAL, false)))
+            if (!gate.tryAcquire()) { android.util.Log.w("SyncWorker", "Sperre belegt: Sonderauftrag versucht es später erneut"); return@withContext Result.retry() }
+        } else if (!gate.tryAcquireOrDefer(manual = inputData.getBoolean(SyncScheduler.KEY_MANUAL, false))) {
+            android.util.Log.w("SyncWorker", "Sperre belegt: Start vorgemerkt (Nachlauf)")
             return@withContext Result.success(workDataOf(SyncScheduler.KEY_DEFERRED to true))
+        }
         // Zwischen tryAcquireOrDefer und try darf nichts stehen: die Sperre muss in jedem Fall wieder frei werden (R-BG4)
         // -157: Scheitert work() UND der Abschluss, bleibt die Ursache aus work() erhalten (die zweite Ausnahme wird nur
         // angehängt); ein Ausdruck try/finally würde sie überschreiben.
         var workFailure: Throwable? = null
+        // SYNC-20261116-425: Wird der Lauf von Android gestoppt (WLAN weg), den Unterbruch SO FRÜH WIE MÖGLICH markieren: direkt wenn die
+        // Coroutine abgebrochen wird, unabhängig vom Abbau der SMB-Verbindungen im Engine-finally (der bei toter Verbindung blockieren
+        // kann, bis der Prozess eingefroren oder beendet wird, bevor der Abschluss unten erreicht wird). Idempotent über [interruptMarker].
+        var normalEnd = false
+        val watcher = launch {
+            try { awaitCancellation() } finally {
+                if (!normalEnd) withContext(NonCancellable) { markInterruptedEarly() }
+            }
+        }
         val workResult: Result? = try { work() } catch (t: Throwable) { workFailure = t; null }
+        normalEnd = true
+        watcher.cancel()
         try {
             try {
                 // finishRun: Aufräumen darf scheitern, die Sperre wird trotzdem freigegeben und ein vorgemerkter Nachlauf
@@ -83,6 +105,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     cleanup = {
                         // Fortschrittsanzeige nie stehen lassen (sie würde sonst nach einem Abbruch "hängen")
                         try { Notifications.cancelProgress(ctx) } catch (ignored: Exception) {}
+                        // SYNC-20261116-437: regulär beendet oder gestoppt (dann übernimmt der Fortsetzen-Auftrag): Sicherheitsnetz zurücknehmen
+                        try { SyncScheduler.disarmRunGuard(ctx) } catch (ignored: Exception) {}
                         // Von Android gestoppt (z. B. WLAN weg -> Netzwerk-Bedingung verletzt): beim Wiederverbinden fortsetzen
                         // ("Abbrechen" durch den Benutzer ist kein Unterbruch -> nicht fortsetzen)
                         if (SyncDecisions.resumeAfterStop(isStopped, stopReasonCompat(), inputData.getBoolean(SyncScheduler.KEY_MANUAL, false)))
@@ -110,6 +134,20 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     private val isResumeRun: Boolean get() = inputData.getBoolean(SyncScheduler.KEY_RESUME, false)
 
+    private val interruptMarker = InterruptMarker()
+
+    /**
+     * Früher Aufruf aus dem Abbruch der Coroutine: WorkManager setzt den Stoppgrund erst kurz nach dem Abbruch, deshalb bis zu 2 s auf
+     * `isStopped` warten. Benutzerabbruch und manueller Lauf werden durch [SyncDecisions.resumeAfterStop] ausgeschlossen.
+     */
+    private suspend fun markInterruptedEarly() {
+        var waited = 0L
+        while (SyncDecisions.stopReasonPending(isStopped, waited, 2_000)) { delay(25); waited += 25 }
+        val manual = inputData.getBoolean(SyncScheduler.KEY_MANUAL, false)
+        android.util.Log.i("SyncWorker", "Abbruch: isStopped=$isStopped, Grund=${stopReasonCompat()}, manuell=$manual, gewartet=${waited}ms")
+        if (SyncDecisions.resumeAfterStop(isStopped, stopReasonCompat(), manual)) markInterrupted()
+    }
+
     /**
      * Stoppgrund (SYNC-20261109-063): `getStopReason()` ist in WorkManager 2.10 mit @RequiresApi(31) markiert, liest
      * aber nur einen intern gesetzten Wert (kein Framework-Aufruf, daher auch unter API 29/30 ohne Absturz).
@@ -134,12 +172,25 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
      *  1. WLAN-Broadcast (WifiNetworkReceiver, ohne Drosselung)
      *  2. Auftrag beim Android-Aufgabenplaner (startet die App auch, wenn sie beendet wurde)
      */
-    private fun markInterrupted() {
+    private fun markInterrupted(newInterruption: Boolean = true) {
+        // Höchstens einmal je Lauf: früher Aufruf nach dem Stopp und Abschluss lösen nie zweimal Fortsetzen-Auftrag und Dienst aus
+        if (!interruptMarker.mark { doMarkInterrupted(newInterruption) }) return
+    }
+
+    private fun doMarkInterrupted(newInterruption: Boolean) {
         val ctx = applicationContext
+        android.util.Log.i("SyncWorker", "Unterbruch markiert (resumeOnWifi, Fortsetzen-Auftrag, Pausiert-Anzeige)")
         GlobalSettings(ctx).resumeOnWifi = true
         SyncScheduler.enqueueResume(ctx, 0, appendToCurrent = isResumeRun)
         // "Pausiert" in der Statusleiste – als Vordergrunddienst, der die App bis zum WLAN wach hält
-        if (!PauseService.start(ctx, lastProgress, targetWifi)) Notifications.showPaused(ctx, lastProgress, targetWifi)
+        // Ab Android 15: ein Fortsetzen-Lauf im falschen WLAN startet den Dienst nicht neu (PausePolicy, SYNC-20261115-389)
+        // SYNC-20261116-434: Zeitlimit-Stopp bei vorhandenem Netz -> der Fortsetzen-Auftrag läuft sofort; nicht «wartet auf WLAN» zeigen
+        if (!SyncDecisions.pausedWaitsForWifi(stopReasonCompat(), WifiHelper.onAllowedNetwork(ctx))) {
+            Notifications.showPaused(ctx, lastProgress, targetWifi, reason = com.sync2pc.app.l10n.str(R.string.notif_resuming))
+            return
+        }
+        val may = PausePolicy.mayStart(android.os.Build.VERSION.SDK_INT, isResumeRun, midRun = newInterruption)
+        if (!may || !PauseService.start(ctx, lastProgress, targetWifi)) Notifications.showPaused(ctx, lastProgress, targetWifi)
     }
 
     /** Letzter Fortschritt (für die Pausiert-Anzeige) */
@@ -156,6 +207,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         dao.closeDanglingRuns()
 
         val settings = GlobalSettings(ctx)
+        val problems = ProblemStore(ctx)
         // Vom Benutzer pausiert: keine automatischen Läufe (ein manueller Start hebt die Pause vorher auf)
         if (!manual && settings.isPaused()) {
             settings.noteSkip(
@@ -168,37 +220,50 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val awaiting = settings.awaitingFirstStart()
         // Schutzbremse (0.4.1): Profile mit offener Entscheidung ruhen – auch bei "Synchronisieren"
         val blocked = com.sync2pc.app.mirror.GuardStore(ctx).blockedIds()
-        val all = dao.profiles().filter {
+        val allProfiles = dao.profiles().filter {
             it.enabled && it.isConfigured() && (manual || it.id !in awaiting) && it.id !in blocked &&
                 // 0.11.0: Profil wird gerade gelöscht (Rückgängig noch möglich) -> nicht synchronisieren
                 it.id != com.sync2pc.app.ui.PendingProfileDelete.pending.value?.id
         }
+        // SYNC-20261113-306: ein Nachhol-Auftrag bearbeitet nur die Fotoprofile mit wartenden Dateien (seine IDs); ohne IDs
+        // (Auftrag aus einer früheren Version, kein Nachhol-Lauf) laufen wie bisher alle passenden Profile
+        val followIds = if (manual) null else SyncScheduler.followUpIds(inputData)
+        // SYNC-20261115-409: «Erneut versuchen» einer Meldungsgruppe läuft nur für deren Profile
+        val onlyIds = if (manual) SyncScheduler.onlyIds(inputData) else null
+        val all = (if (followIds == null) allProfiles else allProfiles.filter { it.type() == ProfileType.PHOTOS && it.id in followIds })
+            .let { list -> if (onlyIds == null) list else list.filter { it.id in onlyIds } }
         if (all.isEmpty()) return Result.success()
-        targetWifi = all.flatMap { it.ssids() }.distinct().joinToString(", ")
-
-        // --- Ziel-WLAN? Direkt nach dem Verbinden liefert Android den Namen evtl. noch nicht -> kurz nachlesen
-        var ssid = WifiHelper.currentSsid(ctx)
-        // Nur warten, wenn ein Profil den Namen braucht (PC-Erkennung GUID kommt ohne aus)
-        if (!manual && ssid == null && WifiHelper.isOnWifi(ctx) && all.any { NetworkRules.needsWifiName(it.pcMode()) }) {
-            for (i in 1..3) {
-                delay(5_000)
-                ssid = WifiHelper.currentSsid(ctx)
-                if (ssid != null) break
-            }
+        // Vorab rein lokal ohne Netzwerk: sind übertragungsbereite Fotos da? Wenn nicht, kein Lauf und kein Verlaufseintrag
+        // (Foto-Auslöser und Nachhol-Timer laufen oft kurz nacheinander ab); junge Dateien behalten ihre Frist.
+        if (followIds != null && !FollowUpPlan.shouldRun(all.map { PendingCheck.readyFiles(ctx, it, settings.minFileAgeMinutes) })) {
+            replanFollowUp(all, settings.minFileAgeMinutes)
+            return Result.success()
         }
-        val currentSsid = ssid
-        // 0.11.5 (DEC-126): über mobile Daten/VPN (Schalter an) gibt es keinen WLAN-Namen -> alle aktiven Profile
-        // Je PC-Erkennung (Stufe 2): GUID = jede erlaubte Netzart, WIFI/BOTH = Name in der Liste
+        // --- Netzart (0.19.0, SYNC-20261115-351): kein WLAN-Name und kein Standort mehr; WLAN immer, mobile Daten/VPN mit Schalter und
+        // ausserhalb des Roamings. Ob der PC der richtige ist, entscheidet allein die PC-Kennung (Vorab-Prüfung unten).
+        // SYNC-20261116-429: Vordergrund SOFORT anfordern, nicht erst nach den Erreichbarkeitsversuchen. Das Startrecht aus dem
+        // Hintergrund (Expedited-Ausnahme) gilt nur kurz; nach ~4 s lehnte Android den Start ab (FGS Disallowed, API 36).
+        // Manuelle Läufe starten bei sichtbarer App und brauchen das nicht. Scheitert es, gilt wie bisher die normale Anzeige.
+        if (!manual && (isResumeRun || WifiHelper.onAllowedNetwork(ctx))) {
+            try {
+                setForeground(Notifications.foregroundInfo(ctx, null, WorkManager.getInstance(ctx).createCancelPendingIntent(id)))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { /* später erneut versucht, sonst normale Benachrichtigung */ }
+        }
+        // SYNC-20261116-430: Direkt nach dem WLAN-Verbinden meldet Android das Netz als aktiv oft erst Sekundenbruchteile später
+        // (Auftrag startet über die Netzwerk-Bedingung, activeNetwork ist aber noch leer). Bis zu 10 s warten, statt den Lauf
+        // sofort ohne Sync zu beenden und erst in 15 Minuten wieder zu schauen.
+        if (!manual && isResumeRun) {
+            var waitedNet = 0L
+            while (!WifiHelper.onAllowedNetwork(ctx) && waitedNet < 10_000) { delay(500); waitedNet += 500 }
+        }
         val offWifi = WifiHelper.offWifiSyncActive(ctx)
         val onAllowed = WifiHelper.onAllowedNetwork(ctx)
-        val eligible = if (manual) all else all.filter { p ->
-            NetworkRules.eligible(p.pcMode(), currentSsid, p.ssids(), onAllowed, offWifi)
-        }
+        val eligible = if (manual || onAllowed) all else emptyList()
+        // «Bekannte Netze»: Fingerabdruck des aktuellen WLANs (nur Aufwandssteuerung, kein Vertrauen); null = nicht anwendbar
+        val netFp = if (!offWifi) WifiHelper.currentNetFingerprint(ctx) else null
         if (eligible.isEmpty()) {
-            if (!manual && WifiHelper.isOnWifi(ctx)) settings.noteSkip(
-                if (currentSsid == null) str(R.string.skip_ssid_unreadable)
-                else str(R.string.skip_ssid_unknown, currentSsid)
-            )
+            if (!manual && WifiHelper.skippedForRoaming(ctx)) settings.noteSkip(str(R.string.skip_roaming))
             // Fortsetzen-Auftrag, aber falsches WLAN: in 15 Minuten erneut schauen (max. 24 Stunden lang)
             if (isResumeRun && settings.resumeOnWifi) {
                 if (System.currentTimeMillis() - settings.resumeSince < 24 * 3600_000L)
@@ -217,7 +282,6 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // Direkt nach dem WLAN-Verbinden ist das Netz oft noch nicht bereit (IP, Routing, PC-Firewall).
         // Deshalb mehrere Versuche über ca. 1 Minute, bevor "nicht erreichbar" gilt.
         // Nur mobile Daten/VPN (0.11.7): höchstens 2 Versuche (Akku, Datenvolumen)
-        val waits = NetworkRules.reachabilityWaits(manual, WifiHelper.offWifiSyncActive(ctx))
         val reach = HashMap<String, Boolean>()
         val unreachable = ArrayList<Profile>()
         val runnable = ArrayList<Profile>()
@@ -233,6 +297,12 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             ) { runnable += p; continue }
             val host = SmbTarget.parse(p.smbPath)?.host
             if (host == null) { runnable += p; continue } // ungültiger Pfad -> Engine meldet den Fehler
+            // «Bekannte Netze»: unbekanntes WLAN = nur ein Versuch, ausser das Sicherheitsnetz (einmal je 24 h und Profil) ist fällig
+            val knownNets = KnownNetStore.list(ctx, p.id)
+            val knownNet = netFp == null || KnownNets.isKnown(knownNets, netFp)
+            val fullDue = !knownNet && NetworkRules.fullAttemptsDue(System.currentTimeMillis(), KnownNetStore.lastFullAttempts(ctx, p.id))
+            if (fullDue && !manual) KnownNetStore.markFullAttempts(ctx, p.id, System.currentTimeMillis())
+            val waits = NetworkRules.reachabilityWaits(manual, offWifi, knownNet, fullDue)
             val ok = reach[host.lowercase()] ?: run {
                 var r = false
                 for ((n, w) in waits.withIndex()) {
@@ -249,21 +319,32 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 reach[host.lowercase()] = r
                 r
             }
-            if (!ok) { unreachable += p; continue }
-            // PC-Erkennung GUID/BOTH: Kennung VOR jeder Anmeldung prüfen (nur Aushandeln, keine Zugangsdaten).
-            // WIFI: keine Prüfung, wie bisher (die Prüfung in SmbSession.open lernt dort still, ohne Vertrauen zu erzeugen).
-            if (!p.pcMode().checksGuid) { runnable += p; continue }
+            if (!ok) { unreachable += p; problems.put(ProblemFactory.of(p, ProblemKind.PC_UNREACHABLE), System.currentTimeMillis()); continue }
+            // PC-Erkennung: Kennung VOR jeder Anmeldung prüfen (nur Aushandeln, keine Zugangsdaten).
             when (val pre = precheckPc(p, manual, pcSeen)) {
-                PcPre.Run -> runnable += p
-                PcPre.Unreachable -> unreachable += p
-                is PcPre.Rejected -> rejected += PcRejection(p, pre.decision, host)
+                PcPre.Run -> {
+                    runnable += p; KnownNetStore.confirmContact(ctx, p.id, netFp)
+                    problems.clearKinds(p.id, PRECHECK_KINDS) // Vorprüfung bestanden: diese Meldungen sind erledigt
+                }
+                PcPre.Unreachable -> { unreachable += p; problems.put(ProblemFactory.of(p, ProblemKind.PC_UNREACHABLE), System.currentTimeMillis()) }
+                is PcPre.Rejected -> {
+                    rejected += PcRejection(p, pre.decision, host)
+                    val rej = PcRejection(p, pre.decision, host)
+                    problems.put(ProblemFactory.of(p, ProblemKinds.fromPcDecision(pre.decision), rej.message()), System.currentTimeMillis())
+                }
                 // F3: Fehler der Aushandlung (nur SMB1, unerwarteter Status, Kennung nicht lesbar) wie «abgewiesen»:
                 // eine Meldung, kein Timer, keine Dauerbenachrichtigung, kein stilles Überspringen
-                is PcPre.Failed -> rejected += PcRejection(p, null, host, pre.text)
+                is PcPre.Failed -> {
+                    rejected += PcRejection(p, null, host, pre.text)
+                    // Verschlüsselung: bestehender Zustand «abgelehnt» (je Profil, siehe unten); übrige Aushandlungsfehler als Meldung
+                    if (!pre.encryption) problems.put(ProblemFactory.of(p, pre.kind, pre.text), System.currentTimeMillis())
+                    // Gleicher Weg wie nach einem Lauf (engine.encryptionUnavailable): Zustand «Verschlüsselung abgelehnt» setzen
+                    if (pre.encryption) settings.setEncNotified(p.id, true)
+                }
             }
         }
         // PC erkannt/nicht mehr abgewiesen -> Benachrichtigungsmerker löschen (neue Meldung bei erneutem Wechsel)
-        for (p in runnable) if (p.pcMode().checksGuid) settings.setPcNotified(p.id, false)
+        for (p in runnable) settings.setPcNotified(p.id, false)
         if (unreachable.isNotEmpty()) settings.noteSkip(str(R.string.skip_pc_unreachable, unreachable.joinToString(", ") { it.name }), manual)
         if (rejected.isNotEmpty()) {
             // -157: Aushandlungsfehler (z. B. Verschlüsselung erforderlich, aber nicht verfügbar) sind keine «nicht erkannten» PCs
@@ -303,29 +384,45 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             // Android 12+: Start aus dem Hintergrund evtl. nicht erlaubt -> normale Benachrichtigung
             Notifications.updateProgress(ctx, null, cancel)
         }
+        // SYNC-20261116-434: Vordergrund wirklich erteilt? Die Ablehnung erscheint nicht zuverlässig als Ausnahme (sie fällt im
+        // WorkManager-Dienst an); deshalb prüfen, ob dessen Vordergrunddienst läuft. Unklar (Fehler beim Abfragen) = keine Meldung.
+        val ranWithoutForeground = !ForegroundCheck.granted(ctx)
+        if (ranWithoutForeground) com.sync2pc.app.ui.BatteryTip.noteRanWithoutForeground(ctx)
+        // SYNC-20261116-437: Sicherheitsnetz gegen Prozess-Kill (nur automatische Läufe; ein manueller Lauf läuft bei sichtbarer App)
+        if (!manual) SyncScheduler.armRunGuard(ctx, appendToCurrent = isResumeRun)
 
+        var lastUiUpdateAt = 0L
         var uploaded = 0; var failed = 0; var waiting = 0; var bytes = 0L
+        // SYNC-20261115-409: alle fehlgeschlagenen Profile des Laufs (nicht nur das letzte), je Ursache eine Zeile
+        val failures = ArrayList<Pair<String, String>>()
         var hardFailure: String? = null
         // Mitten im Lauf verlorene Verbindung (DEC-048): nur diese setzen nach einem Lauf einen Wiederholungs-Timer
         val lostMidRun = ArrayList<Profile>()
-        var youngAt = 0L
+        var young = FollowUpPlan.Young()
+        val followUpProfiles = HashSet<Long>()
         var conflicts = 0
         var spaceShortage = false
         var interruptedMidRun = false
         var deferredFiles = 0
         var folderChanged = false // SYNC-20261111-213: Handy-Ordner während des Laufs verändert
+        var trashedFiles = 0
         // WLAN während der Übertragung wach halten (sonst schaltet Android es im Standby in den Stromsparmodus)
         val locks = TransferLocks.acquire(ctx)
         try {
             for (p in runnable) {
                 val shouldContinue: () -> Boolean = {
-                    manual || NetworkRules.mayContinue(
-                        p.pcMode(), WifiHelper.currentSsid(ctx), p.ssids(), WifiHelper.onAllowedNetwork(ctx)
-                    )
+                    manual || WifiHelper.onAllowedNetwork(ctx)
                 }
                 val onProgress: (SyncProgress) -> Unit = progress@{ pr ->
                     if (isStopped) return@progress // nach dem Stopp keine Anzeige mehr neu erzeugen
                     if (pr.totalFiles > 0) lastProgress = pr
+                    // SYNC-20261116-437: ohne Vordergrund (App gecacht) Binder-Aufrufe begrenzen: Anzeige und Fortschrittsdaten höchstens alle 5 s,
+                    // sonst friert Android den Prozess wegen «excessive binder traffic during cached» ein und beendet ihn
+                    if (ranWithoutForeground) {
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (now - lastUiUpdateAt < 5_000) return@progress
+                        lastUiUpdateAt = now
+                    }
                     Notifications.updateProgress(ctx, pr, cancel)
                     setProgressAsync(
                         workDataOf(
@@ -343,6 +440,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     SyncEngine(ctx, p, trigger, shouldContinue = shouldContinue, onProgress = onProgress,
                         interruptReason = ::interruptReason)
                 val r = engine.run()
+                // SYNC-20261116-434: Verlaufszeile (Stufe W) in jedem Lauf, der ohne Vordergrund lief; Fehler beim Schreiben ignorieren
+                if (ranWithoutForeground && r.id > 0) try {
+                    val m = Msg.of(R.string.run_no_foreground)
+                    dao.insertLog(com.sync2pc.app.data.LogEntry(runId = r.id, time = System.currentTimeMillis(), level = "W", message = m.text(), code = m.toCode()))
+                } catch (ignored: Exception) {}
                 if (engine.blocked) {
                     Notifications.guardNeeded(ctx, p.name)
                     continue
@@ -351,27 +453,44 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 if (manual && p.id in awaiting && r.status != RunStatus.FAILED) settings.setAwaitingFirstStart(p.id, false)
                 uploaded += r.uploaded; failed += r.failed; bytes += r.bytes; deferredFiles += r.deferred
                 if (engine.changedDuringRun) folderChanged = true
+                trashedFiles += engine.trashedCount
                 if (p.type() == ProfileType.PHOTOS) waiting += r.waiting
                 conflicts += engine.newConflicts
                 if (engine.spaceShortage) spaceShortage = true
                 if (engine.wifiLost && !manual) markInterrupted()
+                // SYNC-20261115-409: Zustand je Profil nachführen (Fehler von A bleibt, wenn B fehlerfrei läuft)
+                val nowMs = System.currentTimeMillis()
+                when {
+                    engine.connectionFailed -> problems.put(ProblemFactory.of(p, ProblemKind.PC_UNREACHABLE), nowMs)
+                    engine.encryptionUnavailable -> {} // bestehender Zustand «Verschlüsselung abgelehnt»
+                    r.status == RunStatus.FAILED -> {
+                        val (kind, detail) = ProblemFactory.fromFailedRun(r.messageCode, r.message)
+                        problems.put(ProblemFactory.of(p, kind, detail), nowMs)
+                    }
+                    r.status == RunStatus.PARTIAL || r.failed > 0 -> problems.put(ProblemFactory.of(p, ProblemKind.PARTIAL, r.messageCode ?: r.message), nowMs)
+                    else -> problems.clear(p.id)
+                }
                 if (engine.connectionFailed) { unreachable += p; lostMidRun += p; interruptedMidRun = true }
                 else if (engine.encryptionUnavailable) {
                     // «Verschlüsselung nicht verfügbar»: ändert sich nur durch den Benutzer. Automatische Läufe melden es je Profil
                     // einmal, bis ein Lauf des Profils gelingt; ein manueller Start meldet immer. Der Verlauf bleibt FAILED.
-                    if (manual || !settings.encNotified(p.id)) hardFailure = "${p.name}: ${r.messageText()}"
+                    if (manual || !settings.encNotified(p.id)) failures += p.name to r.messageText()
                     settings.setEncNotified(p.id, true)
                 }
-                else if (r.status == RunStatus.FAILED) hardFailure = "${p.name}: ${r.messageText()}"
+                else if (r.status == RunStatus.FAILED) failures += p.name to r.messageText()
                 if (!engine.connectionFailed && !engine.encryptionUnavailable && r.status != RunStatus.FAILED)
                     settings.setEncNotified(p.id, false)
-                if (engine.nextYoungFileAt > 0 && (youngAt == 0L || engine.nextYoungFileAt < youngAt)) youngAt = engine.nextYoungFileAt
+                if (p.type() == ProfileType.PHOTOS && engine.nextYoungFileAt > 0) {
+                    young = FollowUpPlan.combine(young, FollowUpPlan.Young(engine.nextYoungFileAt, engine.newestYoungFileAt))
+                    followUpProfiles += p.id
+                }
             }
         } finally {
             locks.release()
             Notifications.cancelProgress(ctx)
         }
 
+        hardFailure = FailureLines.build(failures).takeIf { it.isNotEmpty() }
         // --- Abschluss-Benachrichtigungen ----------------------------------------
         // Verbindungsabbrüche sind erwartbar: keine Meldung, der Rest folgt automatisch
         when (SyncDecisions.summaryKind(hardFailure != null, interruptedMidRun, uploaded, failed)) {
@@ -395,19 +514,23 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val toDelete = dao.queuedDeletes().map { it.sourceKey }.distinct().size
         if (toDelete > 0) Notifications.deleteReady(ctx, toDelete)
         // Während des Laufs neu entstandene Fotos/Videos -> nach Mindestalter nachholen
+        // SYNC-20261113-306: EIN Nachhol-Lauf nach dem Reifen der NEUSTEN jungen Datei (nicht der ältesten: sonst reift je Lauf
+        // nur ein Foto einer Serie und es entsteht eine Kette von Läufen)
         val minAgeMs = GlobalSettings(ctx).minFileAgeMinutes * 60_000L
+        var createdAt = 0L
         if (MediaScanner.hasAddedSince(ctx, startedAt / 1000)) {
-            val at = System.currentTimeMillis() + minAgeMs
-            if (youngAt == 0L || at < youngAt) youngAt = at
+            createdAt = System.currentTimeMillis() + minAgeMs
+            for (p in runnable) if (p.type() == ProfileType.PHOTOS) followUpProfiles += p.id
         }
-        if (youngAt > 0) SyncScheduler.enqueueFollowUp(ctx, youngAt)
+        val followUpAt = FollowUpPlan.dueAt(young, createdAt)
+        if (followUpAt > 0) SyncScheduler.enqueueFollowUp(ctx, followUpAt, followUpProfiles)
         // SYNC-20261111-173: Dateien, die sich während des Laufs änderten, folgen per automatischem Folgelauf (höchstens einer
         // pro Stunde). Pause/«nur manuell» gelten wie bei jedem automatischen Lauf (nicht planen, kein Stundenkontingent verbrauchen).
-        val now = System.currentTimeMillis()
-        if (!interruptedMidRun && !settings.isPaused() && SkipFollowUp.mayPlan(deferredFiles, now, settings.lastSkipFollowUpAt, folderChanged)) {
-            SyncScheduler.enqueueSkipFollowUp(ctx)
-            settings.lastSkipFollowUpAt = now // erst nach dem Einreihen: scheitert es, bleibt das Stundenkontingent erhalten
-        }
+        // SYNC-20261114-334 (5): leerer Folgelauf -> Sperre für Folgeläufe allein wegen des Ordnerstempels; jede Arbeit hebt sie auf
+        val didWork = uploaded > 0 || failed > 0 || deferredFiles > 0 || conflicts > 0 || trashedFiles > 0
+        if (!interruptedMidRun) settings.folderFollowUpIdleUntil = SkipFollowUp.idleUntilAfter(
+            settings.folderFollowUpIdleUntil, System.currentTimeMillis(), inputData.getBoolean(SyncScheduler.KEY_SKIP_FOLLOWUP, false), didWork)
+        SyncScheduler.planSkipFollowUp(ctx, settings, interruptedMidRun, deferredFiles, folderChanged, System.currentTimeMillis())
         // Erfolgreich gesichert -> eine offene Erinnerung "lange nicht gesichert" ist erledigt
         if (SyncDecisions.staleResolved(hardFailure != null, interruptedMidRun, unreachable.isEmpty(), rejected.isEmpty())) {
             Notifications.cancelStale(ctx)
@@ -422,6 +545,21 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 
     /**
+     * Nachhol-Auftrag ohne übertragungsbereite Fotos (SYNC-20261113-306): verbleiben junge Dateien, wird die Frist nach der neusten
+     * von ihnen neu gesetzt (rein lokal, ohne Netzwerk); sonst endet die Kette hier.
+     */
+    private suspend fun replanFollowUp(profiles: List<Profile>, minAgeMinutes: Int) {
+        var young = FollowUpPlan.Young()
+        val ids = HashSet<Long>()
+        for (p in profiles) {
+            val y = PendingCheck.youngFiles(applicationContext, p, minAgeMinutes)
+            if (y.any) { young = FollowUpPlan.combine(young, y); ids += p.id }
+        }
+        val at = FollowUpPlan.dueAt(young, 0)
+        if (at > 0) SyncScheduler.enqueueFollowUp(applicationContext, at, ids)
+    }
+
+    /**
      * Ein vom Kennungs-Vorabtest abgewiesenes Profil (Zugangsdaten wurden nicht gesendet). [decision] null = Fehler der Aushandlung
      * mit eigenem Text [text] (F3).
      */
@@ -433,7 +571,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         object Run : PcPre()
         object Unreachable : PcPre()
         class Rejected(val decision: PcDecision) : PcPre()
-        class Failed(val text: String) : PcPre()
+        /** [encryption]: scheiterte an «Erforderlich, aber nicht verfügbar» (SYNC-20261115-404): Karte «Verschlüsselung nicht verfügbar» zeigen */
+        class Failed(val text: String, val encryption: Boolean = false, val kind: ProblemKind = ProblemKind.NEGOTIATION) : PcPre()
     }
 
     /**
@@ -451,7 +590,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         } catch (e: PcIdentityException) {
             PcPre.Rejected(e.decision)
         } catch (e: Exception) {
-            if (isNetworkError(e)) PcPre.Unreachable else PcPre.Failed(userError(e))
+            if (isNetworkError(e)) PcPre.Unreachable else PcPre.Failed(userError(e), isEncryptionUnavailable(e), ProblemKinds.fromKeys(com.sync2pc.app.l10n.Msg.keys(userErrorMsg(e).toCode()).orEmpty()) ?: ProblemKind.NEGOTIATION)
         }
     }
 
@@ -471,11 +610,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // Noch im Ziel-WLAN? Dann ist der PC weg -> in 30 Minuten erneut prüfen.
         // WLAN selbst verloren -> kein Timer, sondern sofort beim nächsten Verbinden (WifiNetworkReceiver).
         // Die Entscheidung liegt in SyncDecisions.unreachableAction (SYNC-20261111-207, B4, testbar).
-        val action = SyncDecisions.unreachableAction(waiting.isNotEmpty(), manual, midRun) {
-            val ssid = WifiHelper.currentSsid(ctx)
-            val onAllowed = WifiHelper.onAllowedNetwork(ctx)
-            waiting.any { NetworkRules.mayContinue(it.pcMode(), ssid, it.ssids(), onAllowed) }
-        }
+        val action = SyncDecisions.unreachableAction(waiting.isNotEmpty(), manual, midRun) { WifiHelper.onAllowedNetwork(ctx) }
         when (action) {
             SyncDecisions.UnreachableAction.CLEAR_WAIT -> {
                 s.shareRetryAt = 0; s.shareUnreachable = ""
@@ -498,7 +633,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             SyncDecisions.UnreachableAction.RESUME_ON_WIFI -> {
                 s.shareRetryAt = 0; s.shareUnreachable = ""
                 if (!isRetry) WorkManager.getInstance(ctx).cancelUniqueWork(SyncScheduler.WORK_RETRY)
-                markInterrupted()
+                markInterrupted(newInterruption = midRun)
             }
         }
     }

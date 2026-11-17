@@ -10,9 +10,10 @@ import kotlin.random.Random
  * Schutzbremse des Ordner-Syncs (0.4.1): Ein Lauf hält an und wartet auf den Benutzer, wenn
  *  - der Basisordner auf dem PC oder dem Handy fehlt bzw. leer ist, obwohl schon synchronisiert wurde,
  *  - mehr als 20 % der synchronisierten Dateien in den Papierkorb kämen,
- *  - nach einem Ordnerwechsel die Stichprobe nicht passt ("Ist das wirklich der richtige Ordner?").
+ *  - nach einem Ordnerwechsel die Stichprobe nicht passt ("Ist das wirklich der richtige Ordner?"),
+ *  - hinter der Freigabe ein anderes Laufwerk liegt (Erstellungszeit des Freigabe-Stamms weicht ab, B12).
  */
-enum class GuardKind { REMOTE_MISSING, LOCAL_MISSING, MASS_DELETE, CHECK_FOLDER }
+enum class GuardKind { REMOTE_MISSING, LOCAL_MISSING, MASS_DELETE, CHECK_FOLDER, VOLUME_CHANGED }
 
 /**
  * Offene Entscheidung eines Profils. [count]/[total] nur bei MASS_DELETE; [folder] = ganzer Unterordner, der
@@ -104,6 +105,39 @@ object GuardPolicy {
     }
 }
 
+/**
+ * Kennzeichen des Laufwerks (B12, SYNC-20261114-341): Erstellungszeit des Freigabe-Stamms. Reine Regeln ohne Android/SMB
+ * (getestet in VolumeCheckTest). Ohne Aussage wird nie blockiert und nichts gemerkt (kein Fehlalarm).
+ */
+object VolumeStamp {
+    /** Millisekunden -> Sekunden; null bei fehlend, 0 oder vor 1980 (Null-Zeit der Windows-Epoche 1601 bzw. unbrauchbar) */
+    fun fromMillis(ms: Long?): Long? {
+        if (ms == null) return null
+        val s = ms / 1000
+        return if (s < 315_532_800L) null else s // 1980-01-01
+    }
+
+    /** Fingerabdruck Pfad|Freigabe|Unterordner: ein Wechsel setzt den gemerkten Wert zurueck (still neu merken) */
+    fun fingerprint(smbPath: String, remoteSubfolder: String): String =
+        smbPath.trim().lowercase() + "|" + remoteSubfolder.trim('\\', '/').lowercase()
+}
+
+object VolumeCheck {
+    enum class Action { PROCEED, REMEMBER, HALT }
+
+    /**
+     * [storedFingerprint]/[storedStamp]: gemerkt (null = noch nichts); [fingerprint]/[stamp]: jetzt. Keine Aussage (stamp null) ->
+     * weiter, nichts merken. Erstes Mal oder anderer Fingerabdruck (Pfad-/Freigabewechsel) -> still merken. Gleich -> weiter.
+     * Abweichend -> anhalten.
+     */
+    fun decide(storedFingerprint: String?, storedStamp: Long?, fingerprint: String, stamp: Long?): Action = when {
+        stamp == null -> Action.PROCEED
+        storedFingerprint == null || storedStamp == null || storedFingerprint != fingerprint -> Action.REMEMBER
+        storedStamp == stamp -> Action.PROCEED
+        else -> Action.HALT
+    }
+}
+
 /** Offene Entscheidungen und einmalige Freigaben je Profil (SharedPreferences, keine DB-Migration nötig) */
 class GuardStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("guard", Context.MODE_PRIVATE)
@@ -125,15 +159,31 @@ class GuardStore(context: Context) {
     fun blockedIds(): Set<Long> = all().map { it.profileId }.toSet()
 
     fun set(g: Guard) {
-        prefs.edit().putString("block_${g.profileId}", "${g.kind.name};${g.count};${g.total};${g.folder}").apply()
+        prefs.edit().putString("block_${g.profileId}", "${g.kind.name};${g.count};${g.total};${g.folder}").commit()
     }
 
-    fun clear(profileId: Long) { prefs.edit().remove("block_$profileId").apply() }
+    fun clear(profileId: Long) { prefs.edit().remove("block_$profileId").commit() }
+
+    /** Gemerktes Laufwerkskennzeichen (B12): Fingerabdruck und Zeit; null = noch nichts. Nicht in der Sicherung (ein neues Geraet lernt neu). */
+    fun volume(profileId: Long): Pair<String, Long>? {
+        val v = prefs.getString("volume_$profileId", null) ?: return null
+        val i = v.lastIndexOf(';')
+        if (i <= 0) return null
+        return v.substring(0, i) to (v.substring(i + 1).toLongOrNull() ?: return null)
+    }
+
+    fun rememberVolume(profileId: Long, fingerprint: String, stamp: Long) {
+        prefs.edit().putString("volume_$profileId", "$fingerprint;$stamp").commit()
+    }
+
+    /** «Ist das richtige Laufwerk – weiter»: der naechste Lauf uebernimmt das neue Kennzeichen (einmal) */
+    fun acceptVolumeOnce(profileId: Long) { prefs.edit().putBoolean("volumeAccept_$profileId", true).commit() }
+    fun takeVolumeAccept(profileId: Long): Boolean = takeFlag("volumeAccept_$profileId")
 
     /** Alles zu einem Profil vergessen (Profil gelöscht, Sync-Status zurückgesetzt) */
     fun forget(profileId: Long) {
         prefs.edit().remove("block_$profileId").remove("check_$profileId")
-            .remove("allowDelete_$profileId").remove("keepFiles_$profileId").apply()
+            .remove("allowDelete_$profileId").remove("keepFiles_$profileId").remove("volume_$profileId").remove("volumeAccept_$profileId").apply()
     }
 
     /** Nach einem Ordnerwechsel: Seiten, deren Stichprobe beim nächsten Lauf noch aussteht */
@@ -143,8 +193,8 @@ class GuardStore(context: Context) {
         }.toSet()
 
     fun setPendingCheck(profileId: Long, sides: Set<Side>) {
-        if (sides.isEmpty()) prefs.edit().remove("check_$profileId").apply()
-        else prefs.edit().putString("check_$profileId", sides.joinToString(",") { it.name }).apply()
+        if (sides.isEmpty()) prefs.edit().remove("check_$profileId").commit()
+        else prefs.edit().putString("check_$profileId", sides.joinToString(",") { it.name }).commit()
     }
 
     /** "Trotzdem löschen": Die Schutzbremse für viele Löschungen greift beim nächsten Lauf einmal nicht */
@@ -157,7 +207,7 @@ class GuardStore(context: Context) {
 
     private fun takeFlag(key: String): Boolean {
         val v = prefs.getBoolean(key, false)
-        if (v) prefs.edit().remove(key).apply()
+        if (v) prefs.edit().remove(key).commit() // sofort dauerhaft: Prozessende nach dem Verbrauch darf die Freigabe nicht erneut gelten lassen (R-S1, -334)
         return v
     }
 }
@@ -217,6 +267,8 @@ object MirrorGuard {
         ACCEPT_FOLDER,
         /** Als neuen Ordner behandeln bzw. neu anlegen: Sync-Status zurücksetzen, Erstabgleich ohne Löschen */
         RESET_AS_NEW,
+        /** Anderes Laufwerk (B12): ist das richtige, weiter. Neues Kennzeichen uebernehmen, der naechste Lauf prueft den PC-Ordner gegen den Sync-Stand */
+        ACCEPT_VOLUME,
     }
 
     suspend fun resolve(context: Context, profileId: Long, choice: Choice) {
@@ -225,6 +277,10 @@ object MirrorGuard {
             Choice.DELETE_ANYWAY -> store.allowDeleteOnce(profileId)
             Choice.KEEP_FILES -> store.keepFilesOnce(profileId)
             Choice.ACCEPT_FOLDER -> store.setPendingCheck(profileId, emptySet())
+            Choice.ACCEPT_VOLUME -> {
+                store.acceptVolumeOnce(profileId)
+                store.setPendingCheck(profileId, setOf(Side.REMOTE))
+            }
             Choice.RESET_AS_NEW -> {
                 val dao = AppDatabase.get(context).dao()
                 dao.clearMirrorState(profileId); dao.clearConflicts(profileId)
@@ -245,6 +301,7 @@ object MirrorGuard {
             GuardKind.LOCAL_MISSING -> com.sync2pc.app.R.string.guard_title_local
             GuardKind.MASS_DELETE -> com.sync2pc.app.R.string.guard_title_mass
             GuardKind.CHECK_FOLDER -> com.sync2pc.app.R.string.profile_folder_warning_title
+            GuardKind.VOLUME_CHANGED -> com.sync2pc.app.R.string.guard_title_volume
         }
     )
 
@@ -270,5 +327,6 @@ object MirrorGuard {
             com.sync2pc.app.l10n.plural(com.sync2pc.app.R.plurals.guard_text_folder, g.count, profileName, g.folder, g.count)
         else com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.guard_text_mass, profileName, g.count, g.total)
         GuardKind.CHECK_FOLDER -> com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.guard_text_check, profileName)
+        GuardKind.VOLUME_CHANGED -> com.sync2pc.app.l10n.str(com.sync2pc.app.R.string.guard_text_volume, profileName)
     }
 }

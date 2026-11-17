@@ -27,6 +27,26 @@ class FakeShare(private val base: String = "") : RemoteStore {
     var closed = false
         private set
 
+    /**
+     * Fehlerinjektion (SYNC-20261114-332 Punkt 5): Namen (ohne Gross-/Kleinschreibung), die die Freigabe ablehnt wie ein PC
+     * mit ungültigem Namen (z. B. «@LeoSync-Bin»): ensureDir, move (Ziel) und renameDir (Ziel) werfen dann [IOException] mit
+     * SMB-Status, ohne etwas zu ändern. Der Name gilt für jedes Pfadsegment.
+     */
+    val rejectedNames = HashSet<String>()
+
+    private fun checkName(path: String) {
+        val bad = path.split('\\').firstOrNull { it.lowercase() in rejectedNames.map { n -> n.lowercase() } } ?: return
+        throw java.io.IOException("STATUS_OBJECT_NAME_INVALID: $bad")
+    }
+
+    /** Datei während eines Laufs ändern (Grösse, Inhalts-Kennung, Zeit), wie eine Änderung auf dem PC mitten in der Übertragung */
+    fun change(rel: String, size: Long? = null, hash: String? = null, modified: Long? = null): FakeShare {
+        val full = path(rel)
+        val f = files[key(full)] ?: error("Datei fehlt: $full")
+        files[key(full)] = F(f.name, size ?: f.size, hash ?: f.hash, modified ?: f.modified)
+        return this
+    }
+
     private fun key(p: String) = p.lowercase()
 
     /** Datei unterhalb der Basis, z. B. add("2026\\06\\a.jpg", 100, "h1"); Elternordner entstehen mit */
@@ -99,6 +119,7 @@ class FakeShare(private val base: String = "") : RemoteStore {
     override fun ensureDir(path: String) {
         onOp?.invoke("ensureDir", path)
         if (path.isEmpty()) return
+        checkName(path)
         mkdirs(path.split('\\'))
         ops += "ensureDir $path"
     }
@@ -107,6 +128,7 @@ class FakeShare(private val base: String = "") : RemoteStore {
     override fun move(from: String, to: String) {
         onOp?.invoke("move", from)
         val f = files[key(from)] ?: throw java.io.IOException("Quelle fehlt: $from")
+        checkName(to)
         if (key(to) in files) throw java.io.IOException("Ziel existiert: $to")
         val parent = to.substringBeforeLast('\\', "")
         if (!dirExists(parent)) throw java.io.IOException("Zielordner fehlt: $parent")
@@ -133,6 +155,7 @@ class FakeShare(private val base: String = "") : RemoteStore {
     override fun renameDir(from: String, to: String) {
         onOp?.invoke("renameDir", from)
         if (key(from) !in dirs) throw java.io.IOException("Ordner fehlt: $from")
+        checkName(to)
         if (key(to) in dirs || key(to) in files) throw java.io.IOException("Ziel existiert: $to")
         val parent = to.substringBeforeLast('\\', "")
         if (!dirExists(parent)) throw java.io.IOException("Zielordner fehlt: $parent")

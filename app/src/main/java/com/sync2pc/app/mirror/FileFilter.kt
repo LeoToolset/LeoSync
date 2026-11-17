@@ -13,6 +13,7 @@ class FileFilter(include: String, exclude: String) {
     private val exc = parse(exclude) + ALWAYS_EXCLUDED
 
     fun accepts(relPath: String): Boolean {
+        if (inSystemFolder(relPath)) return false // Android-Systemordner .thumbnails in jeder Tiefe, auch gegen eine Whitelist
         val p = relPath.lowercase()
         val name = p.substringAfterLast('/')
         fun matches(rules: List<Pair<Boolean, Regex>>) =
@@ -27,7 +28,17 @@ class FileFilter(include: String, exclude: String) {
         /** Temp-Dateien und Papierkorb werden nie synchronisiert */
         // alle Papierkorb-Namen ("@LeoSync-Bin" aktuell, ".LeoSync-Bin" 0.8.0 bis 0.16.x, ".LeoSync-Papierkorb", ".Sync2PC-Papierkorb"; Muster
         // gehören zu [MirrorEngine.TRASH_DIRS]) und alte Version beim Ersetzen (".s2pold", 0.4.1)
-        private val ALWAYS_EXCLUDED = parse("*.s2ptmp\n*.s2pold\n.LeoSync-Bin/**\n.LeoSync-Papierkorb/**\n.Sync2PC-Papierkorb/**\n@LeoSync-Bin/**")
+        // SYNC-20261115-399: ausserdem Android-Systemdateien nach Dateiname: ".pending-*" (MediaStore, Datei wird noch geschrieben) und
+        // ".trashed-*" (Papierkorb der Galerie, Android 11+); der Ordner ".thumbnails" siehe [inSystemFolder]
+        private val ALWAYS_EXCLUDED = parse("*.s2ptmp\n*.s2pold\n.LeoSync-Bin/**\n.LeoSync-Papierkorb/**\n.Sync2PC-Papierkorb/**\n@LeoSync-Bin/**\n.pending-*\n.trashed-*")
+
+        /**
+         * Liegt der Pfad in einem Ordner genau namens ".thumbnails" (Gross-/Kleinschreibung egal, jede Tiefe)? Der letzte Teil (die Datei
+         * selbst) zählt nicht: eine Datei ".thumbnails" oder ein Ordner "my.thumbnails" sind nicht betroffen. Einzige Definition, auch für
+         * die Papierkorb-Ansicht ([TrashSystemEntries]).
+         */
+        fun inSystemFolder(relPath: String): Boolean =
+            relPath.split('/', '\\').dropLast(1).any { it.equals(".thumbnails", ignoreCase = true) }
 
         fun split(s: String): List<String> =
             s.split('\n', ',', ';').map { it.trim() }.filter { it.isNotEmpty() }

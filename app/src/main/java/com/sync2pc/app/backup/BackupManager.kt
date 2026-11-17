@@ -93,11 +93,14 @@ object BackupManager {
             if (replace) {
                 for (old in dao.profiles()) {
                     dao.clearSynced(old.id); dao.clearMappings(old.id); dao.clearDecisions(old.id)
-                    dao.clearMirrorState(old.id); dao.clearConflicts(old.id); dao.deleteProfileRow(old.id)
+                    dao.clearMirrorState(old.id); dao.clearConflicts(old.id); dao.deleteProfileRow(old.id); com.sync2pc.app.sync.ProblemStore(context).clear(old.id)
                     dao.clearRestores(old.id)
                     com.sync2pc.app.mirror.PurgeStore(context).forget(old.id)
                     com.sync2pc.app.mirror.RestoreFailures(context).forget(old.id)
                     com.sync2pc.app.mirror.GuardStore(context).forget(old.id)
+                    com.sync2pc.app.smb.EncryptionAuto.forget(context, old.id)
+                    com.sync2pc.app.smb.EncryptionStatus.forget(old.id)
+                    com.sync2pc.app.sync.KnownNetStore.forget(context, old.id)
                     GlobalSettings(context).setAwaitingFirstStart(old.id, false)
                 }
             }
@@ -138,7 +141,11 @@ object BackupManager {
         }
         val gs = GlobalSettings(context)
         val offWifiBefore = gs.syncOffWifi
-        if (replace) gs.importFrom(c.settings)
+        if (replace) {
+            gs.importFrom(c.settings)
+            // SYNC-20261113-306: ältere Sicherung ohne globales Prüfintervall -> Startwert aus den Profilen der Sicherung
+            if (com.sync2pc.app.sync.FolderCheck.needsStartValue(c.settings)) gs.clearFolderCheck()
+        }
         SyncScheduler.updateRemotePoll(context, dao.profiles())
         SyncScheduler.setupAll(context)
         // 0.11.7: wechselt der Schalter "mobile Daten/VPN", gleich wie in den Einstellungen neu planen

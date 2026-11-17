@@ -100,11 +100,10 @@ internal fun rangeError(text: String, range: IntRange): (@Composable () -> Unit)
 /** Ordner-Profil: Richtung, Löschungen, Versionen, Papierkorb-Frist, Konflikte, Prüfintervall */
 @Composable
 internal fun MirrorOptionsCard(
-    pState: MutableState<Profile>, trashState: MutableState<String>, pollState: MutableState<String>, trashName: String,
+    pState: MutableState<Profile>, trashState: MutableState<String>, trashName: String,
 ) {
     var p by pState
     var trashText by trashState
-    var pollText by pollState
     SectionCard(str(R.string.profile_direction)) {
         HintMore(str(R.string.profile_direction_hint))
         SyncDirection.entries.forEach { d ->
@@ -152,20 +151,6 @@ internal fun MirrorOptionsCard(
             }
             if (p.conflict() == ConflictMode.NEWER) HintMore(str(R.string.profile_conflict_newer_hint))
         }
-        OutlinedTextField(
-            pollText,
-            { v ->
-                pollText = NumberInput.filter(v, 4)
-                NumberInput.parse(pollText, NumberInput.POLL_MINUTES.first, NumberInput.POLL_MINUTES.last)
-                    ?.let { p = p.copy(remotePollMinutes = it) }
-            },
-            label = { Text(str(R.string.profile_poll)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = !NumberInput.isValid(pollText, NumberInput.POLL_MINUTES),
-            supportingText = rangeError(pollText, NumberInput.POLL_MINUTES),
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        HintMore(str(R.string.profile_poll_hint))
     }
 }
 

@@ -45,10 +45,6 @@
     <string name="profile_domain">Domäne / PC-Name (optional)</string>
     <string name="profile_domain_hint">Bei einem lokalen Windows-Konto meist leer lassen. Microsoft-Konto: E-Mail-Adresse als Benutzer.</string>
     <string name="profile_test">Verbindung testen</string>
-    <string name="profile_wifi">WLAN (automatische Synchronisierung)</string>
-    <string name="profile_wifi_hint">Ist das Handy mit einem dieser WLANs verbunden, synchronisiert LeoSync automatisch im Hintergrund. Bei «Nur WLAN-Name» und «Beides» ist mindestens ein WLAN-Name nötig. Ohne WLAN-Namen (z. B. über VPN) wähle «Nur PC-Kennung».</string>
-    <string name="profile_wifi_add_current">Aktuelles WLAN „%1$s“ hinzufügen</string>
-    <string name="profile_wifi_name">WLAN-Name</string>
     <string name="profile_add">Hinzufügen</string>
     <string name="profile_direction">Richtung und Änderungen</string>
     <string name="profile_direction_hint">In welche Richtung wird abgeglichen?</string>
@@ -60,8 +56,6 @@
     <string name="profile_trash_days_hint">Ältere Einträge in „%1$s“ werden auf Handy und PC endgültig gelöscht. 0 = nie. Standard: 30</string>
     <string name="profile_conflict_question">Wenn eine Datei auf beiden Seiten geändert wurde:</string>
     <string name="profile_conflict_newer_hint">Die ältere Version wird in den Papierkorb verschoben, nicht gelöscht.</string>
-    <string name="profile_poll">Auf Änderungen prüfen alle … Minuten</string>
-    <string name="profile_poll_hint">Nur solange das Handy im Ziel-WLAN ist (mindestens 15). Zusätzlich sofort beim Verbinden mit dem WLAN.</string>
     <string name="profile_after_upload">Nach erfolgreicher Übertragung</string>
     <string name="profile_after_upload_hint">Was passiert mit den Fotos auf dem Handy, wenn sie sicher auf dem PC liegen?</string>
     <string name="profile_delete_hint">Dateien werden nur entfernt, wenn der Upload geprüft wurde (Grösse + Prüfsumme). Android fragt dabei einmal pro Durchgang nach Bestätigung.</string>
@@ -149,19 +143,15 @@
     <string name="wizard_intro_guard">Optional: Ab wann LeoSync bei vielen Löschungen zuerst nachfragt. Der Standard passt für die meisten.</string>
     <!-- PC-Erkennung (0.13.0) -->
     <string name="profile_pc_check">PC-Kennung</string>
-    <string name="profile_pc_check_hint">Woran LeoSync deinen PC erkennt, bevor es die Anmeldedaten sendet.</string>
-    <string name="profile_pc_opt_wifi">Nur WLAN-Name</string>
-    <string name="profile_pc_opt_wifi_sub">Schwächer: Ein fremdes Netz mit gleichem WLAN-Namen und gleicher Adresse könnte die Anmeldedaten erhalten.</string>
-    <string name="profile_pc_opt_guid">Nur PC-Kennung</string>
-    <string name="profile_pc_opt_guid_sub">Funktioniert in jedem WLAN. Der PC muss erkannt sein, bevor die Anmeldedaten gesendet werden.</string>
-    <string name="profile_pc_opt_both">Beides</string>
-    <string name="profile_pc_opt_both_sub">WLAN-Name und PC-Kennung müssen beide stimmen. Am sichersten.</string>
+    <string name="profile_known_nets">Bekannte Netze: %1$d</string>
+    <string name="profile_known_nets_forget">Vergessen</string>
+    <string name="profile_known_nets_hint">LeoSync merkt sich die WLANs, in denen dein PC erkannt wurde, und versucht dort ausdauernder, ihn zu erreichen. Nach „Vergessen“ lernt LeoSync sie neu. Das Netz entscheidet nie darüber, ob Anmeldedaten gesendet werden; das tut allein die PC-Kennung.</string>
+    <string name="profile_pc_check_hint">LeoSync erkennt deinen PC an seiner Kennung, bevor es die Anmeldedaten sendet. Das funktioniert in jedem WLAN und über VPN.</string>
     <string name="profile_pc_status_known">PC erkannt</string>
     <string name="profile_pc_status_unknown">PC noch nicht erkannt. Einmal „Verbindung testen“ tippen.</string>
-    <string name="profile_pc_status_new">Der PC wird beim Speichern erkannt, sobald er erreichbar ist (bei „Beides“ im eingetragenen WLAN).</string>
+    <string name="profile_pc_status_new">Der PC wird beim Speichern erkannt, sobald er erreichbar ist.</string>
     <string name="profile_pc_learning">PC wird erkannt …</string>
     <string name="profile_pc_status_changed">Ein anderer PC hat geantwortet. Mit „Verbindung testen“ prüfen.</string>
-    <string name="profile_pc_status_wifi">Bei „Nur WLAN-Name“ nicht verwendet.</string>
     <string name="profile_pc_switch_hint">Die PC-Kennung wird jetzt geprüft: Die Verbindung wird einmal getestet.</string>
     <string name="profile_pc_trust_title">Anderem PC vertrauen?</string>
     <string name="profile_pc_trust_body">Unter %1$s antwortet ein anderer PC als bisher. Nur fortfahren, wenn du den PC neu installiert oder ersetzt hast. Deine Anmeldedaten werden nur gesendet, wenn du dem neuen PC vertraust.</string>

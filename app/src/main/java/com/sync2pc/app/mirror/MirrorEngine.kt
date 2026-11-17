@@ -7,6 +7,10 @@ import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import com.sync2pc.app.R
+import com.sync2pc.app.media.AndroidMediaProbe
+import com.sync2pc.app.media.BudgetedSource
+import com.sync2pc.app.media.MediaDims
+import com.sync2pc.app.media.MediaProbe
 import com.sync2pc.app.data.AppDatabase
 import com.sync2pc.app.l10n.Msg
 import com.sync2pc.app.l10n.plural
@@ -19,6 +23,7 @@ import com.sync2pc.app.data.MirrorState
 import com.sync2pc.app.data.Profile
 import com.sync2pc.app.data.SyncDirection
 import com.sync2pc.app.data.SyncRun
+import com.sync2pc.app.smb.EncryptionAuto
 import com.sync2pc.app.smb.RemoteEntry
 import com.sync2pc.app.smb.SmbSession
 import com.sync2pc.app.sync.PartialHash
@@ -122,6 +127,7 @@ class MirrorEngine(
 
     private val dao = AppDatabase.get(context).dao()
     private val guards = GuardStore(context)
+    private val identities = DownloadIdentities(context)
     private val dir: SyncDirection = profile.dir()
     /** Löschungen übernehmen? (einmal aus nach "Nicht löschen" bei der Schutzbremse) */
     private var propagate = profile.propagateDeletes
@@ -164,6 +170,7 @@ class MirrorEngine(
     private val deferred = AtomicInteger()
     /** Der Lauf hat selbst auf dem Handy geschrieben (Download, Papierkorb, Umbenennen, Aufräumen): kein Folgelauf wegen Ordneränderung (SYNC-20261111-213) */
     @Volatile private var localTouched = false
+    override val trashedCount: Int get() = trashed.get()
     @Volatile override var changedDuringRun = false
         private set
 
@@ -195,6 +202,7 @@ class MirrorEngine(
                 dao.pruneLogs(now - 30 * day); dao.pruneRuns(now - 90 * day)
             }
             log("I", Msg.of(R.string.eng_start_mirror, trigger, profile.name, dir.labelMsg))
+            if (!dryRun && com.sync2pc.app.sync.KnownNetStore.takeNote(context, profile.id)) log("I", Msg.of(R.string.eng_net_relearned))
             // Offene Entscheidung der Schutzbremse -> nichts tun, bis der Benutzer entschieden hat
             if (!dryRun) guards.get(profile.id)?.let { return block(it) }
             emit(str(R.string.eng_reading_folders), 0, 0, 0, 0, null)
@@ -230,6 +238,22 @@ class MirrorEngine(
                 else { if (isNetworkError(e)) connectionFailed = true; throw e }
             }
             val s = smb
+            if (!dryRun && s != null && EncryptionAuto.afterOpen(context, profile, s)) log("I", Msg.of(R.string.eng_enc_auto_required))
+            // B12 (SYNC-20261114-341): liegt hinter der Freigabe noch dasselbe Laufwerk? VOR Wiederherstellungen, Papierkorb-Leeren,
+            // Einlesen und jeder Dateioperation. Ohne Aussage (Abfrage scheitert) nie blockieren. Die Simulation meldet nur.
+            if (s != null && profile.id != 0L) {
+                val fp = VolumeStamp.fingerprint(profile.smbPath, profile.remoteSubfolder)
+                val stamp = s.volumeStamp()
+                val stored = guards.volume(profile.id)
+                val accept = !dryRun && guards.takeVolumeAccept(profile.id)
+                val action = if (accept && stamp != null) VolumeCheck.Action.REMEMBER
+                    else VolumeCheck.decide(stored?.first, stored?.second, fp, stamp)
+                when (action) {
+                    VolumeCheck.Action.HALT -> return block(Guard(profile.id, GuardKind.VOLUME_CHANGED))
+                    VolumeCheck.Action.REMEMBER -> if (!dryRun && stamp != null) guards.rememberVolume(profile.id, fp, stamp)
+                    VolumeCheck.Action.PROCEED -> {}
+                }
+            }
             var baseExists = false
             if (s != null) {
                 val base = s.path()
@@ -253,12 +277,17 @@ class MirrorEngine(
             }
 
             // recover: liegengebliebene ".s2pold" aufräumen bzw. zurückholen (nicht in der Simulation)
-            local = tree.listRecursive(skipTrash, recover = !dryRun).filterKeys { filter.accepts(it) }
-                .entries.associate { it.key.lowercase() to (it.key to it.value) }
+            val localListed = tree.listRecursive(skipTrash, recover = !dryRun).filterKeys { filter.accepts(it) }
+            local = localListed.entries.associate { it.key.lowercase() to (it.key to it.value) }
+            var remoteListed = emptyMap<String, RemoteEntry>()
             if (s != null) {
-                remote = if (baseExists) s.listRecursive(s.path(), skipTrash).filterKeys { filter.accepts(it) }
-                    .entries.associate { it.key.lowercase() to (it.key to it.value) } else emptyMap()
+                remoteListed = if (baseExists) s.listRecursive(s.path(), skipTrash).filterKeys { filter.accepts(it) } else emptyMap()
+                remote = remoteListed.entries.associate { it.key.lowercase() to (it.key to it.value) }
             }
+            // SYNC-20261114-337 (B5/B6): nur melden, die Planung bleibt unverändert
+            reportNameCollisions(localListed.keys, R.string.eng_on_phone)
+            reportNameCollisions(remoteListed.keys, R.string.eng_on_pc)
+            reportMissingTimes(localListed.values.map { it.modified })
             val conflicts = dao.conflicts(profile.id).associateBy { it.relPath.lowercase() }
             log("I", Msg.of(R.string.eng_counts, local.size, remote.size))
 
@@ -289,6 +318,9 @@ class MirrorEngine(
             val actions = ArrayList<Action>()
             // Erledigte Konflikte erst nach der Schutzbremse entfernen (sonst ginge die Entscheidung verloren)
             val doneConflicts = ArrayList<DoneConflict>()
+            // SYNC-20261115-399: Konflikte für Pfade, die der Filter jetzt ausschliesst (z. B. .thumbnails): erledigt, es wird nichts übertragen
+            // oder gelöscht (die Pfade fehlen in beiden Listen; mit Sync-Stand plant der Planer nur DROP)
+            for (c in conflicts.values) if (!filter.accepts(c.relPath)) doneConflicts += DoneConflict(c.relPath.lowercase(), c.relPath, null)
             val keys = (local.keys + remote.keys + states.keys).toSortedSet()
             for (k in keys) {
                 currentCoroutineContext().ensureActive()
@@ -297,6 +329,19 @@ class MirrorEngine(
                 val c = conflicts[k]
                 if (c != null) {
                     if (l != null && r != null) {
+                        // R-K3 (-333): Die Entscheidung gilt nur für die Versionen, über die der Benutzer entschieden hat. Hat sich eine
+                        // Seite seither geändert, wird der Konflikt mit den neuen Werten wieder geöffnet (nichts wird übertragen).
+                        if (c.resolution != null && !TransferIntegrity.conflictStillCurrent(
+                                c.localSize, c.localModified, c.remoteSize, c.remoteModified,
+                                TransferIntegrity.stampOf(l.second), TransferIntegrity.Stamp(r.second.size, r.second.modified))) {
+                            if (!dryRun) {
+                                newConflicts++
+                                dao.upsertConflict(MirrorConflict(profile.id, c.relPath, l.second.size, l.second.modified,
+                                    r.second.size, r.second.modified, System.currentTimeMillis()))
+                            }
+                            log("W", Msg.of(R.string.eng_conflict_reopened, c.relPath))
+                            continue
+                        }
                         when (c.resolution) {
                             null -> continue // wartet weiterhin auf Entscheidung
                             ConflictResolution.KEEP_LOCAL -> actions += Action(k, rel, Kind.UPLOAD, trashOther = true)
@@ -314,6 +359,9 @@ class MirrorEngine(
                 if (hashAborted) break
                 planned?.let { actions += it }
             }
+            skipInvalidWindowsNames(actions)
+            // B2 (-340): Umbenennen/Verschieben erkennen; Paare zählen nicht als Löschung (Schutzbremse) und nicht als Übertragung
+            val renamePlans = if (dryRun && smb == null) emptyList() else detectRenames(actions, states, conflicts)
             if (hashAborted) {
                 wifiLost = true
                 log("W", Msg.of(R.string.eng_wifi_lost))
@@ -348,12 +396,14 @@ class MirrorEngine(
             // Phase B (parallel):     Übertragungen, kleine Dateien zuerst
             val transfers = actions.filter { it.kind == Kind.UPLOAD || it.kind == Kind.DOWNLOAD || it.kind == Kind.KEEP_BOTH }
             if (dryRun) {
+                for (rp in renamePlans) { if (preview.size >= previewLimit) break; preview += PreviewEntry(str(R.string.eng_pv_rename), "${rp.from} → ${rp.to}", false) }
                 for (a in actions) { if (preview.size >= previewLimit) break; previewOf(a) }
                 val visible = actions.count { it.kind != Kind.RECORD && it.kind != Kind.DROP }
                 if (message == null) message = Msg.of(if (preview.size < visible) R.string.eng_actions_first else R.string.eng_actions_all,
                     visible, preview.size)
                 massWarn?.let { w -> message = Msg.join("\n", listOfNotNull(w, message)) }
             } else {
+                if (renamePlans.isNotEmpty()) executeRenames(renamePlans, smb!!)
                 val admin = actions.filter { it !in transfers }
                 for ((index, a) in admin.withIndex()) {
                     currentCoroutineContext().ensureActive()
@@ -378,7 +428,7 @@ class MirrorEngine(
 
             if (status == RunStatus.OK && (failed.get() > 0 || spaceShortage)) status = RunStatus.PARTIAL
             val summary = message ?: com.sync2pc.app.sync.RunSummary.mirror(
-                up.get(), down.get(), trashed.get(), newConflicts, failed.get(), spaceShortage, deferred.get()
+                up.get(), down.get(), trashed.get(), newConflicts, failed.get(), spaceShortage, deferred.get(), renamed.get()
             )
             return finish(status, summary)
         } catch (e: CancellationException) {
@@ -413,7 +463,48 @@ class MirrorEngine(
             l, r, st, dir, propagate,
             conflictNewer = profile.conflict() == ConflictMode.NEWER, keepVersions = profile.keepVersions,
             sameContent = { sameContent(l!!, rel, r!!) },
-        )?.let { Action(k, rel, it.kind, it.trashOther) }
+        )?.let {
+            // R-D1 (-337): Löschung nicht übernommen, weil die Datei auf der anderen Seite geändert wurde
+            if (it.overruledDeletion) log("I", Msg.of(
+                if (it.kind == PlanKind.UPLOAD) R.string.eng_deletion_overruled_phone else R.string.eng_deletion_overruled_pc, rel))
+            Action(k, rel, it.kind, it.trashOther)
+        }
+
+    /** Namenskollisionen einer Seite (nur Gross-/Kleinschreibung bzw. Unicode-Schreibweise) einmal je Paar und Lauf melden */
+    private suspend fun reportNameCollisions(paths: Collection<String>, whereRes: Int) {
+        for (c in NameCollisions.find(paths)) log("W", Msg.of(
+            if (c.kind == NameCollisions.Kind.CASE_ONLY) R.string.eng_name_collision_case else R.string.eng_name_collision_unicode,
+            c.a, c.b, Msg.of(whereRes)))
+    }
+
+    /** R-M1: Speicherort liefert keine Änderungszeiten -> einmal je Profil und Ordner ein Hinweis (nicht in der Simulation) */
+    private suspend fun reportMissingTimes(times: Collection<Long>) {
+        if (dryRun || !ZeroTimeRule.applies(times)) return
+        val prefs = context.getSharedPreferences("mirror_hints", Context.MODE_PRIVATE)
+        val key = "zerotime|${profile.id}|${profile.localTreeUri}"
+        if (prefs.getBoolean(key, false)) return
+        log("W", Msg.of(R.string.eng_zero_time))
+        prefs.edit().putBoolean(key, true).commit()
+    }
+
+    /**
+     * B5 (-337): Namen, die ein Windows-PC nicht erlaubt, werden nie hochgeladen und nie still umbenannt: überspringen mit Hinweis
+     * (einmal je ungültigem Ordner bzw. je Datei). Betrifft nur Übertragungen zum PC; kein Fehler, kein Netzwerkproblem.
+     */
+    private suspend fun skipInvalidWindowsNames(actions: MutableList<Action>) {
+        val reported = HashSet<String>()
+        val skipped = ArrayList<Action>()
+        for (a in actions) {
+            if (a.kind != Kind.UPLOAD && a.kind != Kind.KEEP_BOTH) continue
+            val bad = WindowsNames.invalidPart(a.rel) ?: continue
+            // Pfad bis einschliesslich des ungültigen Teils (Ordner nur einmal melden)
+            val upTo = a.rel.split('/').let { parts -> parts.take(parts.indexOf(bad.first) + 1).joinToString("/") }
+            if (reported.add(upTo.lowercase())) log("W", Msg.of(R.string.eng_name_invalid_pc, upTo))
+            skipped += a
+        }
+        actions.removeAll(skipped.toSet())
+    }
+
     /**
      * Gleicher Inhalt? Nur beim Erstabgleich, bei auf beiden Seiten geänderten Dateien und bei einseitig geänderten
      * Dateien gleicher Grösse nötig, darum gründlich: immer die GANZE Datei beider Seiten (R-I3, SYNC-20261111-142,
@@ -504,18 +595,177 @@ class MirrorEngine(
         else -> (local[a.key]?.second?.size ?: 0) + (remote[a.key]?.second?.size ?: 0)
     }
 
+    // ---- Umbenennen und Verschieben erkennen (SYNC-20261114-340, B2) ---------------------------------------------
+
+    /** Geplante Umbenennung/Verschiebung: [onPc] = auf dem PC ausführen (Handy wurde umbenannt), sonst auf dem Handy */
+    private class RenamePlan(val onPc: Boolean, val from: String, val to: String, val isDir: Boolean, val pairs: List<RenameMatcher.Pair>)
+
+    private val renamed = AtomicInteger()
+
+    private fun renameOffKey() = "renameOff|${profile.id}|${profile.localTreeUri}"
+
+    /**
+     * Sucht in der Plan-Liste Paare «alter Name gelöscht + neuer Name neu» und ersetzt sie durch Umbenennungen. Nur mit «Löschungen
+     * übernehmen» (sonst bleiben Dubletten gewollt). Die Paare verschwinden aus [actions] und zählen damit nicht für die Schutzbremse.
+     * Jede Inhaltsprüfung (PartialHash.thorough, grosse Dateien nur Stichproben) muss bestätigen; jede Unsicherheit = kein Paar.
+     */
+    private suspend fun detectRenames(
+        actions: MutableList<Action>, states: Map<String, MirrorState>, conflicts: Map<String, MirrorConflict>,
+    ): List<RenamePlan> {
+        val s = smb ?: return emptyList()
+        if (!propagate) return emptyList()
+        if (context.getSharedPreferences("mirror_hints", Context.MODE_PRIVATE).getBoolean(renameOffKey(), false)) return emptyList()
+        val plans = ArrayList<RenamePlan>()
+        val removeKeys = HashSet<String>()
+
+        suspend fun run(onPc: Boolean) {
+            val trashKind = if (onPc) Kind.TRASH_REMOTE else Kind.TRASH_LOCAL
+            val moveKind = if (onPc) Kind.UPLOAD else Kind.DOWNLOAD
+            val olds = ArrayList<RenameMatcher.Old>()
+            for (a in actions) {
+                if (a.kind != trashKind || a.key in removeKeys || conflicts[a.key] != null) continue
+                val st = states[a.key] ?: continue
+                if (onPc) { // Handy-Datei fehlt, PC-Datei noch wie im Stand
+                    val r = remote[a.key]?.second ?: continue
+                    if (local[a.key] != null || r.size != st.remoteSize || r.modified != st.remoteModified) continue
+                    olds += RenameMatcher.Old(a.key, a.rel, RenameMatcher.Stamp(st.localSize, st.localModified))
+                } else { // PC-Datei fehlt, Handy-Datei noch wie im Stand
+                    val l = local[a.key]?.second ?: continue
+                    if (remote[a.key] != null || l.size != st.localSize || l.modified != st.localModified) continue
+                    olds += RenameMatcher.Old(a.key, a.rel, RenameMatcher.Stamp(st.remoteSize, st.remoteModified))
+                }
+            }
+            val news = ArrayList<RenameMatcher.New>()
+            for (a in actions) {
+                if (a.kind != moveKind || a.trashOther || a.key in removeKeys || conflicts[a.key] != null || states[a.key] != null) continue
+                if (onPc) {
+                    val l = local[a.key]?.second ?: continue
+                    if (remote[a.key] != null) continue
+                    news += RenameMatcher.New(a.key, a.rel, RenameMatcher.Stamp(l.size, l.modified))
+                } else {
+                    val r = remote[a.key]?.second ?: continue
+                    if (local[a.key] != null) continue
+                    news += RenameMatcher.New(a.key, a.rel, RenameMatcher.Stamp(r.size, r.modified))
+                }
+            }
+            if (olds.isEmpty() || news.isEmpty()) return
+            // Inhaltsprüfung: neue Datei auf A gegen die alte Datei auf B (gründlich)
+            val verified = RenameMatcher.match(olds, news).filter { p ->
+                currentCoroutineContext().ensureActive()
+                try {
+                    if (onPc) {
+                        val l = local[p.new.key]!!.second; val r = remote[p.old.key]!!.second
+                        l.size == r.size && PartialHash.thorough(l.size) { off, len -> tree.readAt(l.docId, off, len) } ==
+                            s.thoroughHash(remotePath(p.old.rel), r.size)
+                    } else {
+                        val l = local[p.old.key]!!.second; val r = remote[p.new.key]!!.second
+                        l.size == r.size && PartialHash.thorough(l.size) { off, len -> tree.readAt(l.docId, off, len) } ==
+                            s.thoroughHash(remotePath(p.new.rel), r.size)
+                    }
+                } catch (e: CancellationException) { throw e } catch (e: Exception) { false }
+            }
+            if (verified.isEmpty()) return
+            val grouped = RenameMatcher.group(
+                verified, stateKeys = states.keys,
+                otherKeys = if (onPc) remote.keys else local.keys,
+                otherDirExists = { dir -> if (onPc) s.dirExists(remotePath(dir)) else tree.findDir(dir) != null },
+            )
+            for (d in grouped.dirs) {
+                plans += RenamePlan(onPc, d.from, d.to, true, d.pairs)
+                d.pairs.forEach { removeKeys += it.old.key; removeKeys += it.new.key }
+            }
+            for (p in grouped.files) {
+                plans += RenamePlan(onPc, p.old.rel, p.new.rel, false, listOf(p))
+                removeKeys += p.old.key; removeKeys += p.new.key
+            }
+        }
+        if (dir.up) run(onPc = true)
+        if (dir.down) run(onPc = false)
+        if (removeKeys.isNotEmpty()) actions.removeAll { it.key in removeKeys && (it.kind == Kind.TRASH_REMOTE || it.kind == Kind.TRASH_LOCAL || it.kind == Kind.UPLOAD || it.kind == Kind.DOWNLOAD) }
+        return plans
+    }
+
+    /**
+     * Führt die erkannten Umbenennungen aus (Phase A, vor den Übertragungen). Unmittelbar vorher wird geprüft, dass Quelle und Ziel noch
+     * so sind wie beim Einlesen; jeder Fehler lässt das Paar unberührt (nie halb ausgeführt, der nächste Lauf entscheidet). Kann der
+     * Speicherort auf dem Handy nicht verschieben, wird die Erkennung für dieses Profil abgeschaltet (kein Kopieren).
+     */
+    private suspend fun executeRenames(plans: List<RenamePlan>, s: SmbSession) {
+        for (plan in plans) {
+            currentCoroutineContext().ensureActive()
+            try {
+                val fromPath = remotePath(s, plan.from); val toPath = remotePath(s, plan.to)
+                if (plan.onPc) {
+                    // Handy wurde umbenannt: auf dem PC dasselbe tun
+                    val sourceOk = plan.pairs.all { p -> unchanged(s.stat(remotePath(s, p.old.rel)), remote[p.old.key]?.second) }
+                    val phoneOk = plan.pairs.all { p -> local[p.new.key]?.second?.let { unchanged(findNow(p.new.rel, it), it) } == true }
+                    val targetFree = if (plan.isDir) !s.dirExists(toPath) else s.stat(toPath) == null
+                    if (!sourceOk || !phoneOk || !targetFree) { log("W", Msg.of(R.string.eng_rename_skipped, plan.from, plan.to)); continue }
+                    s.ensureDir(toPath.substringBeforeLast('\\', ""))
+                    if (plan.isDir) s.renameDir(fromPath, toPath) else s.move(fromPath, toPath)
+                    for (p in plan.pairs) {
+                        val rNow = s.stat(remotePath(s, p.new.rel)) ?: throw IOException(str(R.string.eng_err_after_upload_missing))
+                        dao.deleteMirrorState(profile.id, p.old.key)
+                        record(p.new.key, local[p.new.key]!!.second, rNow)
+                    }
+                    log("I", Msg.of(R.string.eng_renamed_pc, plan.from, plan.to))
+                } else {
+                    // PC wurde umbenannt: auf dem Handy dasselbe tun (nie kopieren)
+                    val sourceOk = plan.pairs.all { p -> local[p.old.key]?.second?.let { unchanged(findNow(p.old.rel, it), it) } == true }
+                    val pcOk = plan.pairs.all { p -> unchanged(s.stat(remotePath(s, p.new.rel)), remote[p.new.key]?.second) }
+                    val targetFree = if (plan.isDir) tree.findDir(plan.to) == null else tree.find(plan.to) == null
+                    if (!sourceOk || !pcOk || !targetFree) { log("W", Msg.of(R.string.eng_rename_skipped, plan.from, plan.to)); continue }
+                    val docId = if (plan.isDir) tree.findDir(plan.from) else local[plan.pairs[0].old.key]?.second?.docId
+                    localTouched = true
+                    val moved = docId?.let { tree.relocate(plan.from, it, plan.to) }
+                    if (moved == null) {
+                        context.getSharedPreferences("mirror_hints", Context.MODE_PRIVATE).edit().putBoolean(renameOffKey(), true).commit()
+                        log("W", Msg.of(R.string.eng_rename_unsupported))
+                        return
+                    }
+                    for (p in plan.pairs) {
+                        val ls = (try { tree.find(p.new.rel) } catch (e: Exception) { null })
+                            ?: throw IOException(str(R.string.eng_err_after_download_missing))
+                        dao.deleteMirrorState(profile.id, p.old.key)
+                        record(p.new.key, ls, remote[p.new.key]!!.second)
+                    }
+                    log("I", Msg.of(R.string.eng_renamed_phone, plan.from, plan.to))
+                }
+                renamed.addAndGet(plan.pairs.size)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (isNetworkError(e)) { connectionFailed = true; throw e }
+                log("W", Msg.of(R.string.eng_rename_failed, plan.from, plan.to, com.sync2pc.app.sync.shortError(e)))
+            }
+        }
+    }
     /** Phase A: Verwaltungsschritte (nacheinander, Haupt-Verbindung) */
+    /** Auflösung/Dauer einer PC-Mediendatei lesen (höchstens 1 MiB, 5 s); jede Ausnahme = unbekannt, Abbruch des Laufs wird weitergereicht */
+    private suspend fun probeRemote(s: SmbSession, rel: String, size: Long): MediaDims? {
+        if (!MediaProbe.isMedia(rel)) return null
+        return try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                s.withRange(remotePath(s, rel), size) { AndroidMediaProbe.read(rel, BudgetedSource(it)) }
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) { throw e }
+        catch (e: Exception) { null }
+    }
+
     private suspend fun executeAdmin(a: Action, s: SmbSession) {
         val l = local[a.key]?.second
         val r = remote[a.key]?.second
         when (a.kind) {
             Kind.TRASH_LOCAL -> {
                 l ?: return
+                // Nur löschen, was noch dem Einlesestand entspricht (R-I7, -333); sonst zurückstellen, Stand bleibt
+                if (!unchanged(findNow(a.rel, l), l)) return skipChanged(a.rel, Msg.of(R.string.eng_on_phone))
                 localTouched = true; tree.moveToTrash(a.rel, l, today); trashed.incrementAndGet()
                 dao.deleteMirrorState(profile.id, a.key)
                 log("I", Msg.of(R.string.eng_trash_local, a.rel))
             }
             Kind.TRASH_REMOTE -> {
+                if (r != null && !unchanged(s.stat(remotePath(s, a.rel)), r)) return skipChanged(a.rel, Msg.of(R.string.eng_on_pc))
                 trashRemote(s, a.rel)
                 dao.deleteMirrorState(profile.id, a.key)
                 log("I", Msg.of(R.string.eng_trash_remote, a.rel))
@@ -525,9 +775,16 @@ class MirrorEngine(
             Kind.CONFLICT -> {
                 if (l == null || r == null) return
                 newConflicts++
+                // Auflösung/Dauer der PC-Seite (SYNC-20261115-367): nur lesen, wenn neu, geändert oder fehlend (Fehlversuch = 0, nicht wiederholt)
+                val old = dao.conflicts(profile.id).firstOrNull { it.relPath == a.rel }
+                val reuse = old != null && old.remoteSize == r.size && old.remoteModified == r.modified && old.remoteWidth != null
+                val dims = if (reuse) null else probeRemote(s, a.rel, r.size)
                 dao.upsertConflict(
                     MirrorConflict(
-                        profile.id, a.rel, l.size, l.modified, r.size, r.modified, System.currentTimeMillis()
+                        profile.id, a.rel, l.size, l.modified, r.size, r.modified, System.currentTimeMillis(),
+                        remoteWidth = if (reuse) old.remoteWidth else if (MediaProbe.isMedia(a.rel)) (dims?.width ?: 0) else null,
+                        remoteHeight = if (reuse) old.remoteHeight else if (MediaProbe.isMedia(a.rel)) (dims?.height ?: 0) else null,
+                        remoteDurationMs = if (reuse) old.remoteDurationMs else dims?.durationMs,
                     )
                 )
                 log("W", Msg.of(R.string.eng_conflict, a.rel))
@@ -643,7 +900,11 @@ class MirrorEngine(
                     TransferStep.TRANSFER -> {}
                 }
                 try {
-                    upload(s, a.key, a.rel, l, onBytes = onBytes)
+                    // Erwartung am Ziel: die PC-Datei beim Einlesen; hat dieser Lauf sie selbst in den Papierkorb verschoben, gibt es sie nicht
+                    upload(s, a.key, a.rel, l, checkTarget = true, expectedRemote = if (a.key in trashedByRun) null else r, onBytes = onBytes)
+                } catch (e: TargetChangedException) {
+                    // PC-Datei während der Übertragung geändert: Temp-Datei ist gelöscht, nichts überschrieben, der nächste Lauf entscheidet
+                    return skipChanged(a.rel, Msg.of(R.string.eng_on_pc))
                 } catch (e: SourceChangedException) {
                     // Handy-Datei während der Übertragung geändert: Temp-Datei ist gelöscht, kein Sync-Stand für diese Version
                     // geschrieben -> der nächste Lauf überträgt die neue Version (SYNC-20261111-202)
@@ -720,7 +981,9 @@ class MirrorEngine(
                     }
                     uploadedByRun.add(a.key)
                 }
-                download(s, a.key, a.rel, r) { b -> onBytes(ls.size + b) }
+                // Der Originalname ist nach dem Umbenennen frei: eine dort inzwischen neu angelegte Handy-Datei darf nie ersetzt
+                // werden (-333 Teil 5; vorher lief der Download ohne diese Erwartung und löschte sie über .s2pold)
+                download(s, a.key, a.rel, r, expectNewAfterOwnTrash = true) { b -> onBytes(ls.size + b) }
             }
             else -> {} // Phase A
         }
@@ -728,6 +991,8 @@ class MirrorEngine(
 
     private suspend fun upload(
         s: SmbSession, key: String, rel: String, l: LocalEntry, replaceExisting: Boolean = true, watchSource: Boolean = true,
+        /** Zieldatei unmittelbar vor dem Ersetzen prüfen (-333): erwartet wird die PC-Datei beim Einlesen, null = es gab keine */
+        checkTarget: Boolean = false, expectedRemote: RemoteEntry? = null,
         onBytes: (Long) -> Unit,
     ) {
         val path = remotePath(s, rel)
@@ -742,6 +1007,7 @@ class MirrorEngine(
             expectedHash = { PartialHash.compute(l.size) { off, len -> tree.readAt(l.docId, off, len) } },
             // Handy-Datei während der Übertragung geändert/gewachsen? Dann Temp-Datei verwerfen, zurückstellen (-202)
             sourceChanged = if (watchSource) ({ !unchanged(findNow(rel, l), l) }) else null,
+            targetUnchanged = if (checkTarget) ({ unchanged(s.stat(path), expectedRemote) }) else null,
         )
         val rs = s.stat(path) ?: throw IOException(str(R.string.eng_err_after_upload_missing))
         if (rs.size != l.size) throw IOException(str(R.string.eng_err_after_upload_size))
@@ -757,14 +1023,28 @@ class MirrorEngine(
         // Abgebrochene Downloads setzen an der Abbruchstelle fort (angefangene .s2ptmp auf dem Handy)
         // Gab es die Datei beim Einlesen nicht, ist sie inzwischen aber auf dem Handy entstanden -> nicht überschreiben
         // (Wiederholung nach eigenem Verschieben in den Papierkorb: die Datei fehlt jetzt, es darf nichts Neues dort liegen)
-        val expectNew = local[key] == null || expectNewAfterOwnTrash
+        // Hat dieser Lauf die Handy-Datei gerade selbst in den Papierkorb verschoben (auch kurz zuvor in executeTransfer), gibt es sie nicht mehr
+        val expectedLocal = if (expectNewAfterOwnTrash || key in trashedByRun) null else local[key]?.second
+        // Fortsetzen nur mit gespeicherter Identität der PC-Datei vom Neubeginn (R-T1/R-I6, -333), kein Uhrenvergleich
+        val idKey = TransferIntegrity.identityKey(profile.id, rel)
+        val current = TransferIntegrity.Stamp(r.size, r.modified)
+        val path = remotePath(s, rel)
         val (docId, resumedAt) = try {
-            localTouched = true; tree.writeFileResumable(rel, r.size, r.modified, expectNew = expectNew) { out, offset ->
-                s.download(remotePath(s, rel), out, onBytes, { ctx.ensureActive() }, startOffset = offset, expectedSize = r.size)
+            localTouched = true; tree.writeFileResumable(
+                rel, r.size, expectedLocal,
+                mayResume = { tmpSize -> TransferIntegrity.mayResume(tmpSize, identities.get(idKey), current) },
+                onFresh = { if (!identities.put(idKey, current)) throw IOException(str(R.string.eng_err_identity_store)) },
+                verify = { tmpId, resumed ->
+                    !TransferIntegrity.needsHashCheck(r.size, resumed) ||
+                        PartialHash.compute(r.size) { off, len -> tree.readAt(tmpId, off, len) } == s.partialHash(path, r.size)
+                },
+            ) { out, offset ->
+                s.download(path, out, onBytes, { ctx.ensureActive() }, startOffset = offset, expectedSize = r.size)
             }
         } catch (e: ChangedDuringRunException) {
             return skipChanged(rel, Msg.of(R.string.eng_on_phone))
         }
+        identities.remove(idKey)
         // Stand so lesen wie beim nächsten Einlesen (Ordnerliste statt Einzelabfrage): Manche Speicherorte (z. B.
         // "Downloads") liefern sonst andere Zeitstempel -> der nächste Lauf hielte die Datei für geändert (0.5.1)
         val ls = (try { tree.find(rel) } catch (e: Exception) { null }) ?: tree.stat(docId)
@@ -802,7 +1082,7 @@ class MirrorEngine(
             override fun markConnectionFailed() { connectionFailed = true }
             override fun trashRemote(rel: String) = this@MirrorEngine.trashRemote(s, rel)
             override suspend fun upload(key: String, rel: String, local: LocalEntry) = this@MirrorEngine.upload(s, key, rel, local, watchSource = false) {}
-            override suspend fun download(key: String, rel: String, remote: RemoteEntry) = this@MirrorEngine.download(s, key, rel, remote) {}
+            override suspend fun download(key: String, rel: String, remote: RemoteEntry) = this@MirrorEngine.download(s, key, rel, remote, expectNewAfterOwnTrash = true) {} // die aktuelle Handy-Version ging eben in den Papierkorb
         }).run()
     }
 

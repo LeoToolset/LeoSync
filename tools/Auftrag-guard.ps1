@@ -96,7 +96,7 @@ try {
     $Orte = New-Object System.Collections.Generic.List[string]
     foreach ($o in @(
             $root,                                                                  # Projektordner (Rollengrenzen: CLAUDE.md 1)
-            'D:\testsync', 'X:\testsync',                                           # Testordner UX/QA
+            'D:\testsync', 'X:\testsync', 'X:\testfotos',                           # Testordner UX/QA (testfotos: Ziel Foto-Profil)
             (Join-Path $env:LOCALAPPDATA 'LeoSyncTestShare'),                       # venv SMB-Testserver (QA)
             'C:\Users\rbald\AppData\Local\Temp', (Join-Path $env:LOCALAPPDATA 'Temp'), # Temp fest (TMP kann im Hook auf einen Unterordner zeigen)
             [IO.Path]::GetTempPath(), $env:TMP, $env:TEMP,                          # %TMP% inkl. Scratchpad
@@ -105,7 +105,7 @@ try {
             (Join-Path $env:USERPROFILE '.claude\plans'))) {                        # Plaene von Claude Code
         if ($o) { try { [void]$Orte.Add([IO.Path]::GetFullPath($o).TrimEnd('\')) } catch {} }
     }
-    $OrtHinweis = 'Freigegeben sind: Projektordner, D:\testsync, X:\testsync, %LOCALAPPDATA%\LeoSyncTestShare, %TMP%, Website-tasks.md, Memory/Plaene von Claude Code (CLAUDE.md 1). Nur zulassen, wenn der Auftrag diesen Ort wirklich braucht.'
+    $OrtHinweis = 'Freigegeben sind: Projektordner, D:\testsync, X:\testsync, X:\testfotos, %LOCALAPPDATA%\LeoSyncTestShare, %TMP%, Website-tasks.md, Memory/Plaene von Claude Code (CLAUDE.md 1). Nur zulassen, wenn der Auftrag diesen Ort wirklich braucht.'
 
     if (@('Edit', 'Write', 'MultiEdit', 'NotebookEdit') -contains $tool) {
         $p = [string]$ti.file_path
@@ -188,6 +188,32 @@ try {
                 param($m) '"' + $m.Groups[1].Value.Trim('"', "'").TrimEnd('\', '/') + '\' + $m.Groups[2].Value.Trim('"', "'").TrimStart('\', '/') + '"' })
         $t = [regex]::Replace($t, '(?i)("[A-Za-z]:[\\/][^"]*"|''[A-Za-z]:[\\/][^'']*''|(?<![\w"''$:])[A-Za-z]:[\\/][^\s"'';|<>(){},`+]*)\s*\+\s*("[^"]*"|''[^'']*'')', [Text.RegularExpressions.MatchEvaluator] {
                 param($m) '"' + $m.Groups[1].Value.Trim('"', "'").TrimEnd('\', '/') + '\' + $m.Groups[2].Value.Trim('"', "'").TrimStart('\', '/') + '"' })
+        #    Text-Argumente von tools\Auftrag.ps1 (-Aufgabe, -Risiken, -Wert ...) sind kein Schreibziel (Fehlalarm 2026-11-13:
+        #    Pfad im -Risiken-Text). Nach dem Skriptnamen wird Text in Anfuehrungszeichen bis zum Anweisungsende (; | > Zeilenende)
+        #    geleert; Umleitungen und Folgeanweisungen bleiben geprueft. Nicht, wenn Text als Code ausgefuehrt wird.
+        if (-not (Test-AusfuehrtText $cmd)) {
+            $agRx = [regex]::new('(?i)Auftrag(-Selbsttest)?\.ps1')
+            $agTreffer = $agRx.Match($t)
+            while ($agTreffer.Success) {
+                $agSb = New-Object System.Text.StringBuilder
+                $agEnde = $agTreffer.Index + $agTreffer.Length
+                $agPos = $agEnde
+                $agQuote = [char]0
+                while ($agPos -lt $t.Length) {
+                    $agZ = $t[$agPos]
+                    if ($agQuote -ne [char]0) {
+                        if ($agQuote -eq [char]'"' -and $agZ -eq [char]'`') { $agPos += 2; continue }
+                        if ($agZ -eq $agQuote) { $agQuote = [char]0; [void]$agSb.Append($agZ) }
+                        $agPos++; continue
+                    }
+                    if ($agZ -eq [char]'"' -or $agZ -eq [char]"'") { $agQuote = $agZ; [void]$agSb.Append($agZ); $agPos++; continue }
+                    if ($agZ -eq [char]';' -or $agZ -eq [char]'|' -or $agZ -eq [char]'>' -or $agZ -eq [char]"`n" -or $agZ -eq [char]"`r") { break }
+                    [void]$agSb.Append($agZ); $agPos++
+                }
+                $t = $t.Substring(0, $agEnde) + $agSb.ToString() + $t.Substring([Math]::Min($agPos, $t.Length))
+                $agTreffer = $agRx.Match($t, $agEnde + $agSb.Length)
+            }
+        }
         $start = '(?:[A-Za-z]:[\\/]|\\\\[\w.$-]+\\)'
         $kand = New-Object System.Collections.Generic.List[string]
         $qPat = '(["''])(' + $start + '[^"''\r\n]*)\1'
